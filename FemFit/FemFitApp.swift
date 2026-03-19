@@ -1,31 +1,38 @@
-//
-//  FemFitApp.swift
-//  FemFit
-//
-//  Created by André Pels on 19.03.26.
-//
+// FemFitApp.swift
+// Einfügen in Xcode: Diese Datei wird automatisch erstellt wenn du das Projekt anlegst.
+// Ersetze den Inhalt der automatisch erstellten [AppName]App.swift mit diesem Code.
 
 import SwiftUI
 import SwiftData
 
 @main
 struct FemFitApp: App {
+
+    
+
+    // SwiftData Container – hier werden alle Daten gespeichert
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            WorkoutProgram.self,
+            WorkoutDay.self,
+            Exercise.self,
+            WorkoutSet.self,
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            return try ModelContainer(for: schema, configurations: [config])
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            fatalError("SwiftData Container konnte nicht erstellt werden: \(error)")
         }
     }()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .onAppear {
+                    CycleManager.shared.checkAndUpdateCycle()
+                    CycleManager.shared.requestNotificationPermission()
+                }
         }
         .modelContainer(sharedModelContainer)
     }

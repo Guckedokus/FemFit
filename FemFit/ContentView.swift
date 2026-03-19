@@ -1,66 +1,47 @@
-//
-//  ContentView.swift
-//  FemFit
-//
-//  Created by André Pels on 19.03.26.
-//
+// ContentView.swift
+// FemFit – Haupt-Navigation (Tab Bar)
+// Einfügen in Xcode: File > New > File > Swift File > "ContentView"
 
 import SwiftUI
 import SwiftData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+
+    var cycleManager = CycleManager.shared
+    @State private var selectedTab = 0
+
+    // Periode-Farbe für die ganze App
+    var accentColor: Color {
+        cycleManager.isInPeriod ? Color(hex: "#E84393") : Color(hex: "#1D9E75")
+    }
 
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
-                }
-                .onDelete(perform: deleteItems)
-            }
-#if os(macOS)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-#endif
-            .toolbar {
-#if os(iOS)
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-#endif
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
-            }
-        } detail: {
-            Text("Select an item")
-        }
-    }
+        TabView(selection: $selectedTab) {
 
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
+            HomeView()
+                .tabItem {
+                    Label("Workouts", systemImage: "dumbbell.fill")
+                }
+                .tag(0)
 
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
-            }
-        }
-    }
-}
+            CycleTrackerView()
+                .tabItem {
+                    Label("Zyklus", systemImage: "calendar.circle.fill")
+                }
+                .tag(1)
 
-#Preview {
-    ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+            ProgressChartView()
+                .tabItem {
+                    Label("Fortschritt", systemImage: "chart.bar.fill")
+                }
+                .tag(2)
+
+            SettingsView()
+                .tabItem {
+                    Label("Einstellungen", systemImage: "gearshape.fill")
+                }
+                .tag(3)
+        }
+        .tint(accentColor)
+    }
 }
