@@ -7,6 +7,67 @@ import SwiftUI
 import UserNotifications
 
 // ───────────────────────────────────────────
+// MARK: – Zyklus-Phasen Enum
+// ───────────────────────────────────────────
+
+enum CyclePhase: String, Codable, CaseIterable {
+    case menstruation = "Menstruation"
+    case follicular   = "Follikelphase"
+    case ovulation    = "Ovulation"
+    case luteal       = "Lutealphase"
+    
+    // Emoji für jede Phase
+    var emoji: String {
+        switch self {
+        case .menstruation: return "🩸"
+        case .follicular:   return "🌱"
+        case .ovulation:    return "🥚"
+        case .luteal:       return "🌙"
+        }
+    }
+    
+    // Farbe für jede Phase
+    var color: Color {
+        switch self {
+        case .menstruation: return Color(hex: "#E84393")  // Pink
+        case .follicular:   return Color(hex: "#1D9E75")  // Grün
+        case .ovulation:    return Color(hex: "#F4A623")  // Gold/Orange
+        case .luteal:       return Color(hex: "#7B68EE")  // Lila
+        }
+    }
+    
+    // Gewichts-Multiplikator (basierend auf wissenschaftlichen Studien)
+    var weightMultiplier: Double {
+        switch self {
+        case .menstruation: return 0.75  // 75% - Reduziert wegen niedriger Hormone
+        case .follicular:   return 1.00  // 100% - PEAK PERFORMANCE!
+        case .ovulation:    return 0.98  // 98% - Immer noch sehr gut
+        case .luteal:       return 0.85  // 85% - Progesteron steigt, Energie sinkt
+        }
+    }
+    
+    // Beschreibung
+    var description: String {
+        switch self {
+        case .menstruation: return "Leichte Gewichte – dein Körper braucht Schonung"
+        case .follicular:   return "POWER-Phase! Nutze deine maximale Kraft"
+        case .ovulation:    return "Höchste Energie – perfekt für schwere Gewichte"
+        case .luteal:       return "Moderate Gewichte – Energie nimmt ab"
+        }
+    }
+    
+    // Kurzbeschreibung
+    var shortDescription: String {
+        switch self {
+        case .menstruation: return "Schonend"
+        case .follicular:   return "Power!"
+        case .ovulation:    return "Peak"
+        case .luteal:       return "Moderat"
+        }
+    }
+}
+
+// ───────────────────────────────────────────
 // MARK: – CycleManager (Herzstück der App)
 // ───────────────────────────────────────────
 
@@ -19,6 +80,34 @@ class CycleManager {
         get { UserDefaults.standard.bool(forKey: "isInPeriod") }
         set { UserDefaults.standard.set(newValue, forKey: "isInPeriod") }
     }
+    
+    // NEU: Aktuelle Zyklus-Phase
+    var currentPhase: CyclePhase {
+        let day = currentCycleDay
+        
+        // Menstruation: Tag 1-5 (periodLength)
+        if day <= periodLength {
+            return .menstruation
+        }
+        // Follikelphase: Tag 6-13
+        else if day <= 13 {
+            return .follicular
+        }
+        // Ovulation: Tag 14-16
+        else if day <= 16 {
+            return .ovulation
+        }
+        // Lutealphase: Tag 17-28
+        else {
+            return .luteal
+        }
+    }
+    
+    // NEU: Gewichts-Multiplikator für aktuelle Phase
+    var currentWeightMultiplier: Double {
+        currentPhase.weightMultiplier
+    }
+    
     var cycleLength: Int {
         get { let v = UserDefaults.standard.integer(forKey: "cycleLength"); return v == 0 ? 28 : v }
         set { UserDefaults.standard.set(newValue, forKey: "cycleLength") }
@@ -68,17 +157,19 @@ class CycleManager {
 
     // Zyklus-Phase als Text
     var cyclePhaseText: String {
+        currentPhase.description
+    }
+
+    var cyclePhaseColor: Color {
+        currentPhase.color
+    }
+    
+    // Legacy-Support: Alte Funktion bleibt für Kompatibilität
+    var cyclePhaseTextOld: String {
         if isInPeriod { return "Periode – leichtere Gewichte aktiv" }
         if daysUntilNextPeriod <= 3 { return "PMS-Phase – demnächst Periode" }
         if currentCycleDay <= 13 { return "Follikelphase – beste Kraftwerte" }
         return "Lutealphase – gut zum Trainieren"
-    }
-
-    var cyclePhaseColor: Color {
-        if isInPeriod { return Color(hex: "#E84393") }
-        if daysUntilNextPeriod <= 3 { return .orange }
-        if currentCycleDay <= 13 { return .green }
-        return Color(hex: "#7B68EE")
     }
 
     // ── Zyklus prüfen und ggf. Modus wechseln ──

@@ -67,11 +67,20 @@ struct ExerciseDetailView: View {
             .sorted { $0.date > $1.date }
     }
 
-    // Letztes Gewicht als Vorschlag
+    // Letztes Gewicht als Vorschlag (NEU: phasenbasiert)
     var suggestedWeight: String {
+        let currentPhase = cycleManager.currentPhase
+        
+        // Versuche: Gewicht aus aktueller Phase
+        if let phaseWeight = exercise.suggestedWeight(for: currentPhase) {
+            return String(format: "%.1f", phaseWeight)
+        }
+        
+        // Fallback: Legacy-System
         if let last = exercise.lastWeight(period: isInPeriod) {
             return String(format: "%.1f", last)
         }
+        
         return ""
     }
 
@@ -392,16 +401,67 @@ struct ExerciseDetailView: View {
     // ───────────────────────────────────────────
 
     var modeBadge: some View {
-        HStack {
-            Spacer()
-            Text(isInPeriod ? "🌸 Perioden-Gewichte" : "💪 Normal-Gewichte")
-                .font(.caption).fontWeight(.semibold)
-                .foregroundColor(isInPeriod ? Color(hex: "#880E4F") : Color(hex: "#085041"))
-                .padding(.horizontal, 14)
+        VStack(spacing: 8) {
+            // Aktuelle Phase mit Info
+            HStack(spacing: 12) {
+                // Phase-Badge
+                HStack(spacing: 8) {
+                    Text(cycleManager.currentPhase.emoji)
+                        .font(.title3)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(cycleManager.currentPhase.rawValue)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                        Text(cycleManager.currentPhase.shortDescription)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Spacer()
+                
+                // Gewichts-Multiplikator
+                VStack(spacing: 2) {
+                    Text("\(Int(cycleManager.currentPhase.weightMultiplier * 100))%")
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .foregroundColor(cycleManager.currentPhase.color)
+                    Text("Gewichte")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(accentColor.opacity(0.15))
-                .cornerRadius(20)
-            Spacer()
+                .background(cycleManager.currentPhase.color.opacity(0.15))
+                .cornerRadius(8)
+            }
+            .padding(14)
+            .background(
+                LinearGradient(
+                    colors: [
+                        cycleManager.currentPhase.color.opacity(0.15),
+                        cycleManager.currentPhase.color.opacity(0.05)
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .cornerRadius(16)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(cycleManager.currentPhase.color.opacity(0.3), lineWidth: 1.5)
+            )
+            
+            // Legacy Badge (falls jemand manuell umschaltet)
+            if isInPeriod != (cycleManager.currentPhase == .menstruation) {
+                Text("⚠️ Manuell: \(isInPeriod ? "🌸 Perioden-Gewichte" : "💪 Normal-Gewichte")")
+                    .font(.caption2).fontWeight(.semibold)
+                    .foregroundColor(.orange)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(8)
+            }
         }
     }
 
@@ -529,72 +589,31 @@ struct ExerciseDetailView: View {
     }
 
     // ───────────────────────────────────────────
-    // MARK: – Vergleichskarte Normal vs Periode
+    // MARK: – Vergleichskarte Alle 4 Phasen
     // ───────────────────────────────────────────
 
     var comparisonCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Deine Gewichte im Vergleich")
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Deine Gewichte nach Zyklus-Phase")
                 .font(.headline)
 
-            HStack(spacing: 12) {
-                // Normal
-                VStack(spacing: 6) {
-                    Text("💪 Normal")
-                        .font(.caption).fontWeight(.semibold)
-                        .foregroundColor(Color(hex: "#085041"))
-                    if let w = exercise.lastWeight(period: false) {
-                        Text("\(String(format: "%.1f", w)) kg")
-                            .font(.title3).fontWeight(.bold)
-                            .foregroundColor(Color(hex: "#1D9E75"))
-                        Text("\(exercise.lastReps(period: false) ?? 0) Wdh")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    } else {
-                        Text("–")
-                            .font(.title3)
-                            .foregroundColor(.secondary)
-                    }
+            // Grid mit allen 4 Phasen
+            VStack(spacing: 10) {
+                HStack(spacing: 10) {
+                    PhaseComparisonBox(phase: .menstruation, exercise: exercise)
+                    PhaseComparisonBox(phase: .follicular, exercise: exercise)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(14)
-                .background(Color(hex: "#1D9E75").opacity(0.1))
-                .cornerRadius(12)
-
-                // Periode
-                VStack(spacing: 6) {
-                    Text("🌸 Periode")
-                        .font(.caption).fontWeight(.semibold)
-                        .foregroundColor(Color(hex: "#880E4F"))
-                    if let w = exercise.lastWeight(period: true) {
-                        Text("\(String(format: "%.1f", w)) kg")
-                            .font(.title3).fontWeight(.bold)
-                            .foregroundColor(Color(hex: "#E84393"))
-                        Text("\(exercise.lastReps(period: true) ?? 0) Wdh")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    } else {
-                        Text("–")
-                            .font(.title3)
-                            .foregroundColor(.secondary)
-                    }
+                HStack(spacing: 10) {
+                    PhaseComparisonBox(phase: .ovulation, exercise: exercise)
+                    PhaseComparisonBox(phase: .luteal, exercise: exercise)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(14)
-                .background(Color(hex: "#E84393").opacity(0.1))
-                .cornerRadius(12)
             }
 
-            // Differenz-Info
-            if let nw = exercise.lastWeight(period: false),
-               let pw = exercise.lastWeight(period: true) {
-                let diff = nw - pw
-                let pct  = Int((diff / nw) * 100)
-                Text("Differenz: \(String(format: "%.1f", diff)) kg (\(pct)%) – das ist völlig normal durch den Hormonspiegel! 🌱")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(.top, 4)
-            }
+            // Info-Text
+            Text("💡 Tipp: Deine Gewichte variieren natürlich durch Hormone. Das ist völlig normal!")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .padding(.top, 4)
         }
         .padding(16)
         .background(Color(uiColor: UIColor.systemBackground))
@@ -648,7 +667,8 @@ struct ExerciseDetailView: View {
             reps:           reps,
             setNumber:      todaySets.count + 1,
             isDuringPeriod: isInPeriod,
-            note:           noteInput
+            note:           noteInput,
+            cyclePhase:     cycleManager.currentPhase  // NEU: Phase speichern
         )
         newSet.exercise = exercise
         context.insert(newSet)
@@ -669,3 +689,75 @@ struct ExerciseDetailView: View {
         }
     }
 }
+// ───────────────────────────────────────────
+// MARK: – Phase Comparison Box
+// ───────────────────────────────────────────
+
+struct PhaseComparisonBox: View {
+    var cycleManager = CycleManager.shared
+    let phase: CyclePhase
+    let exercise: Exercise
+    
+    var isCurrentPhase: Bool {
+        cycleManager.currentPhase == phase
+    }
+    
+    var body: some View {
+        VStack(spacing: 6) {
+            // Header
+            HStack(spacing: 4) {
+                Text(phase.emoji)
+                    .font(.caption)
+                Text(phase.rawValue)
+                    .font(.caption2)
+                    .fontWeight(isCurrentPhase ? .bold : .medium)
+            }
+            .foregroundColor(phase.color)
+            
+            // Gewicht
+            if let w = exercise.lastWeight(for: phase) {
+                Text("\(String(format: "%.1f", w)) kg")
+                    .font(.subheadline)
+                    .fontWeight(.bold)
+                    .foregroundColor(phase.color)
+                Text("\(exercise.lastReps(for: phase) ?? 0) Wdh")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            } else {
+                Text("–")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                Text("Noch keine Daten")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            
+            // Multiplier
+            Text("\(Int(phase.weightMultiplier * 100))%")
+                .font(.caption2)
+                .fontWeight(.semibold)
+                .foregroundColor(phase.color.opacity(0.7))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 8)
+        .background(
+            LinearGradient(
+                colors: [
+                    phase.color.opacity(isCurrentPhase ? 0.2 : 0.1),
+                    phase.color.opacity(isCurrentPhase ? 0.1 : 0.05)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(phase.color.opacity(isCurrentPhase ? 0.5 : 0.3), lineWidth: isCurrentPhase ? 2 : 1)
+        )
+        .shadow(color: isCurrentPhase ? phase.color.opacity(0.2) : .clear, radius: 4, y: 2)
+    }
+}
+
+

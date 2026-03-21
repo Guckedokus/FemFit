@@ -30,21 +30,27 @@ struct ContentView: View {
                 .tabItem { Label("Workouts", systemImage: "dumbbell.fill") }
                 .tag(1)
 
+                NavigationStack {
+                    ManageWorkoutDaysView()
+                }
+                .tabItem { Label("Trainingstage", systemImage: "calendar.badge.clock") }
+                .tag(2)
+
                 CycleTrackerView()
                     .tabItem { Label("Zyklus", systemImage: "calendar.circle.fill") }
-                    .tag(2)
+                    .tag(3)
 
                 NavigationStack {
                     WorkoutCalendarView()
                 }
                 .tabItem { Label("Kalender", systemImage: "calendar") }
-                .tag(3)
+                .tag(4)
 
                 NavigationStack {
                     MoreView(selectedTab: $selectedTab)
                 }
                 .tabItem { Label("Mehr", systemImage: "ellipsis") }
-                .tag(4)
+                .tag(5)
             }
             .tint(accentColor)
         }

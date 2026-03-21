@@ -68,10 +68,46 @@ import SwiftData
         self.name = name; self.order = order
         self.targetSets = targetSets; self.targetReps = targetReps; self.notes = notes
     }
+    
+    // Legacy: Alte 2-Phasen-Logik (bleibt für Kompatibilität)
     var normalSets: [WorkoutSet]  { sets.filter { !$0.isDuringPeriod }.sorted { $0.date < $1.date } }
     var periodSets: [WorkoutSet]  { sets.filter {  $0.isDuringPeriod }.sorted { $0.date < $1.date } }
     func lastWeight(period: Bool) -> Double? { (period ? periodSets : normalSets).last?.weight }
     func lastReps(period: Bool)   -> Int?    { (period ? periodSets : normalSets).last?.reps }
+    
+    // NEU: 4-Phasen-Logik
+    func sets(for phase: CyclePhase) -> [WorkoutSet] {
+        sets.filter { $0.cyclePhase == phase }.sorted { $0.date < $1.date }
+    }
+    
+    func lastWeight(for phase: CyclePhase) -> Double? {
+        sets(for: phase).last?.weight
+    }
+    
+    func lastReps(for phase: CyclePhase) -> Int? {
+        sets(for: phase).last?.reps
+    }
+    
+    // NEU: Gewichts-Vorschlag basierend auf Phase
+    func suggestedWeight(for phase: CyclePhase) -> Double? {
+        // Versuche zuerst Daten aus derselben Phase
+        if let lastInPhase = lastWeight(for: phase) {
+            return lastInPhase
+        }
+        
+        // Fallback: Nutze Follikelphase als Basis (100%) und skaliere
+        if let follicularWeight = lastWeight(for: .follicular) {
+            return follicularWeight * phase.weightMultiplier
+        }
+        
+        // Fallback 2: Nutze irgendein Gewicht und skaliere
+        if let anyWeight = sets.last?.weight {
+            return anyWeight * phase.weightMultiplier
+        }
+        
+        return nil
+    }
+    
     var todayCompletion: Double {
         let today = Calendar.current.startOfDay(for: .now)
         let todaySets = sets.filter { Calendar.current.startOfDay(for: $0.date) == today }
@@ -87,11 +123,25 @@ import SwiftData
     var setNumber: Int
     var date: Date
     var isDuringPeriod: Bool
+    var cyclePhaseRaw: String?  // NEU: Speichert die Phase (rawValue von CyclePhase)
     var note: String
     var exercise: Exercise?
-    init(weight: Double, reps: Int, setNumber: Int, isDuringPeriod: Bool, note: String = "") {
+    
+    init(weight: Double, reps: Int, setNumber: Int, isDuringPeriod: Bool, note: String = "", cyclePhase: CyclePhase? = nil) {
         self.weight = weight; self.reps = reps; self.setNumber = setNumber
         self.date = .now; self.isDuringPeriod = isDuringPeriod; self.note = note
+        self.cyclePhaseRaw = cyclePhase?.rawValue
+    }
+    
+    // Helper: Phase zurückholen
+    var cyclePhase: CyclePhase? {
+        get {
+            guard let raw = cyclePhaseRaw else { return nil }
+            return CyclePhase(rawValue: raw)
+        }
+        set {
+            cyclePhaseRaw = newValue?.rawValue
+        }
     }
 }
 
@@ -129,14 +179,27 @@ import SwiftData
     var startTime: Date
     var endTime: Date?
     var isDuringPeriod: Bool
+    var cyclePhaseRaw: String?  // NEU: Speichert die Phase
     var completedExerciseCount: Int
     
-    init(workoutDay: WorkoutDay?, isDuringPeriod: Bool) {
+    init(workoutDay: WorkoutDay?, isDuringPeriod: Bool, cyclePhase: CyclePhase? = nil) {
         self.date = Calendar.current.startOfDay(for: .now)
         self.workoutDay = workoutDay
         self.startTime = .now
         self.isDuringPeriod = isDuringPeriod
+        self.cyclePhaseRaw = cyclePhase?.rawValue
         self.completedExerciseCount = 0
+    }
+    
+    // Helper: Phase zurückholen
+    var cyclePhase: CyclePhase? {
+        get {
+            guard let raw = cyclePhaseRaw else { return nil }
+            return CyclePhase(rawValue: raw)
+        }
+        set {
+            cyclePhaseRaw = newValue?.rawValue
+        }
     }
     
     var duration: TimeInterval {

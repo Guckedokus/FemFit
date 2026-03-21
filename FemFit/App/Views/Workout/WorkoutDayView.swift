@@ -21,6 +21,7 @@ struct WorkoutDayView: View {
     @State private var editReps = "10"
     @State private var showFinishConfirmation = false
     @State private var showStartPrompt = false
+    @State private var showModeSelection = false
     @State private var hasShownPrompt = false
 
     var accentColor: Color {
@@ -134,11 +135,33 @@ struct WorkoutDayView: View {
         }
         .alert("Neues Training starten?", isPresented: $showStartPrompt) {
             Button("Ja, starten!", role: .none) {
-                startWorkout()
+                // Zeige Modus-Auswahl
+                showModeSelection = true
             }
             Button("Nein, nur ansehen", role: .cancel) { }
         } message: {
             Text("Möchtest du jetzt ein neues Training für '\(day.name)' starten?")
+        }
+        .alert("In welchem Modus trainieren?", isPresented: $showModeSelection) {
+            Button("\(CyclePhase.follicular.emoji) \(CyclePhase.follicular.rawValue) (Power!)") {
+                cycleManager.isInPeriod = false
+                startWorkout(phase: .follicular)
+            }
+            Button("\(CyclePhase.menstruation.emoji) \(CyclePhase.menstruation.rawValue) (Schonend)") {
+                cycleManager.isInPeriod = true
+                startWorkout(phase: .menstruation)
+            }
+            Button("\(CyclePhase.ovulation.emoji) \(CyclePhase.ovulation.rawValue) (Peak)") {
+                cycleManager.isInPeriod = false
+                startWorkout(phase: .ovulation)
+            }
+            Button("\(CyclePhase.luteal.emoji) \(CyclePhase.luteal.rawValue) (Moderat)") {
+                cycleManager.isInPeriod = false
+                startWorkout(phase: .luteal)
+            }
+            Button("Abbrechen", role: .cancel) { }
+        } message: {
+            Text("Wähle deine aktuelle Zyklus-Phase.\n\nAktuell: \(cycleManager.currentPhase.emoji) \(cycleManager.currentPhase.rawValue) (Tag \(cycleManager.currentCycleDay))")
         }
         .sheet(isPresented: $showAddExercise) {
             ExercisePickerView(day: day)
@@ -232,7 +255,8 @@ struct WorkoutDayView: View {
                 if hasActiveSession {
                     showFinishConfirmation = true
                 } else {
-                    startWorkout()
+                    // Zeige Modus-Auswahl vor dem Start
+                    showModeSelection = true
                 }
             } label: {
                 HStack {
@@ -266,14 +290,21 @@ struct WorkoutDayView: View {
     // MARK: – Session Management
     // ───────────────────────────────────────────
     
-    func startWorkout() {
-        // Neue Session erstellen (jede Session ist separat!)
-        let session = WorkoutSession(workoutDay: day, isDuringPeriod: cycleManager.isInPeriod)
+    func startWorkout(phase: CyclePhase? = nil) {
+        // Verwende übergebene Phase oder aktuelle Phase vom CycleManager
+        let sessionPhase = phase ?? cycleManager.currentPhase
+        
+        // Neue Session erstellen mit Phase-Info
+        let session = WorkoutSession(
+            workoutDay: day, 
+            isDuringPeriod: sessionPhase == .menstruation,
+            cyclePhase: sessionPhase
+        )
         context.insert(session)
         
         do {
             try context.save()
-            print("✅ Neues Training gestartet!")
+            print("✅ Neues Training gestartet in Phase: \(sessionPhase.emoji) \(sessionPhase.rawValue)")
             
             // Zähle heutige Sessions
             let todaySessions = day.sessions.filter { 

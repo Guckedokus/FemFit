@@ -16,6 +16,7 @@ struct HomeView: View {
     @State private var newDayName     = ""
     @State private var selectedProgram: WorkoutProgram?
     @State private var showTemplates = false
+    @State private var showPhaseInfo = false  // NEU
 
     var activeProgram: WorkoutProgram? { programs.first }
     
@@ -92,6 +93,9 @@ struct HomeView: View {
             .sheet(isPresented: $showTemplates) {
                 TemplatePickerView()
             }
+            .sheet(isPresented: $showPhaseInfo) {
+                CyclePhaseInfoView()
+            }
         }
     }
 
@@ -142,27 +146,44 @@ struct HomeView: View {
                             .tracking(1)
                             .textCase(.uppercase)
                             .foregroundColor(Color(hex: "#C9A0D4"))
-                        Text(cycleManager.isInPeriod ? "Periode" : cyclePhaseName)
-                            .font(.system(size: 17))
-                            .foregroundColor(.white)
+                        HStack(spacing: 6) {
+                            Text(cycleManager.currentPhase.emoji)
+                                .font(.system(size: 20))
+                            Text(cycleManager.currentPhase.rawValue)
+                                .font(.system(size: 17))
+                                .foregroundColor(.white)
+                        }
                         Text(cycleManager.cyclePhaseText)
                             .font(.system(size: 12))
                             .foregroundColor(Color(hex: "#E879A0"))
                             .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
+                        
+                        // Gewichts-Info
                         HStack(spacing: 4) {
-                            ForEach(0..<4) { i in
-                                RoundedRectangle(cornerRadius: 2)
-                                    .fill(i == 0 ? Color(hex: "#E879A0") : Color(hex: "#4A1B4C"))
-                                    .frame(width: 20, height: 4)
-                            }
+                            Text("\(Int(cycleManager.currentPhase.weightMultiplier * 100))%")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(cycleManager.currentPhase.color)
+                            Text("Gewichte")
+                                .font(.system(size: 11))
+                                .foregroundColor(Color(hex: "#C9A0D4"))
                         }
                         .padding(.top, 2)
+                        
                         Text("Tag \(cycleManager.currentCycleDay) von \(cycleManager.cycleLength)")
                             .font(.system(size: 11))
                             .foregroundColor(Color(hex: "#C9A0D4"))
                     }
                     Spacer()
+                    
+                    // Info-Button
+                    Button {
+                        showPhaseInfo = true
+                    } label: {
+                        Image(systemName: "info.circle.fill")
+                            .font(.title3)
+                            .foregroundColor(Color(hex: "#E879A0"))
+                    }
                 }
                 .padding(.top, 20)
                 .padding(.bottom, 24)
