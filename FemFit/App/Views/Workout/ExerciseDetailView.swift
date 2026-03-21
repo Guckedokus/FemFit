@@ -7,8 +7,9 @@ import SwiftData
 
 struct ExerciseDetailView: View {
 
-    var cycleManager = CycleManager.shared
+    @Bindable var cycleManager = CycleManager.shared
     @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
 
     let exercise: Exercise
 
@@ -19,9 +20,37 @@ struct ExerciseDetailView: View {
     @State private var savedBanner  = false
     @State private var showTimer    = false
     @State private var lastSetNumber = 0
+    @State private var showSkipConfirmation = false
+    @State private var showFinishHint = false
+    @State private var skipTarget: Exercise? = nil  // ← NEU: für programmatische Navigation nach Skip
 
     var isInPeriod: Bool { cycleManager.isInPeriod }
     var accentColor: Color { isInPeriod ? Color(hex: "#E84393") : Color(hex: "#1D9E75") }
+    
+    // Navigation zu nächster/vorheriger Übung
+    var nextExercise: Exercise? {
+        guard let day = exercise.day else { return nil }
+        let sorted = day.sortedExercises
+        guard let currentIndex = sorted.firstIndex(where: { $0.id == exercise.id }) else { return nil }
+        let nextIndex = currentIndex + 1
+        return nextIndex < sorted.count ? sorted[nextIndex] : nil
+    }
+    
+    var previousExercise: Exercise? {
+        guard let day = exercise.day else { return nil }
+        let sorted = day.sortedExercises
+        guard let currentIndex = sorted.firstIndex(where: { $0.id == exercise.id }) else { return nil }
+        return currentIndex > 0 ? sorted[currentIndex - 1] : nil
+    }
+    
+    var isLastExercise: Bool {
+        nextExercise == nil
+    }
+    
+    var progress: Double {
+        guard exercise.targetSets > 0 else { return 0 }
+        return min(1.0, Double(todaySets.count) / Double(exercise.targetSets))
+    }
 
     // Heutige Sätze (aktueller Modus)
     var todaySets: [WorkoutSet] {
@@ -50,6 +79,12 @@ struct ExerciseDetailView: View {
         ScrollView {
             VStack(spacing: 20) {
 
+                // ── Fortschrittsanzeige ──
+                progressCard
+                
+                // ── Quick-Actions ──
+                quickActionsRow
+
                 // ── Modus-Badge ──
                 modeBadge
 
@@ -68,6 +103,9 @@ struct ExerciseDetailView: View {
                 if !historySets.isEmpty {
                     historySection
                 }
+                
+                // ── Navigation-Buttons unten ──
+                bottomNavigationButtons
 
                 Spacer(minLength: 40)
             }
@@ -75,13 +113,81 @@ struct ExerciseDetailView: View {
         }
         .navigationTitle(exercise.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // Vorherige Übung
+            ToolbarItem(placement: .topBarLeading) {
+                if let prev = previousExercise {
+                    NavigationLink(destination: ExerciseDetailView(exercise: prev)) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left")
+                            Text("Zurück")
+                        }
+                        .font(.subheadline)
+                        .foregroundColor(accentColor)
+                    }
+                }
+            }
+            
+            // Nächste Übung / Fertig
+            ToolbarItem(placement: .topBarTrailing) {
+                if let next = nextExercise {
+                    NavigationLink(destination: ExerciseDetailView(exercise: next)) {
+                        HStack(spacing: 4) {
+                            Text("Weiter")
+                            Image(systemName: "chevron.right")
+                        }
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(accentColor)
+                    }
+                } else {
+                    Button {
+                        if progress >= 1.0 {
+                            dismiss()
+                        } else {
+                            showFinishHint = true
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text("Fertig")
+                            Image(systemName: "checkmark")
+                        }
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.green)
+                    }
+                }
+            }
+        }
+        .alert("Übung überspringen?", isPresented: $showSkipConfirmation) {
+            Button("Überspringen", role: .none) {
+                if let next = nextExercise {
+                    skipTarget = next          // ← FIX: State setzen statt direkt navigieren
+                } else {
+                    dismiss()
+                }
+            }
+            Button("Abbrechen", role: .cancel) { }
+        } message: {
+            Text("Du hast erst \(todaySets.count) von \(exercise.targetSets) Sätzen gemacht.")
+        }
+        .alert("Noch nicht ganz fertig!", isPresented: $showFinishHint) {
+            Button("Trotzdem beenden", role: .none) {
+                dismiss()
+            }
+            Button("Weitermachen", role: .cancel) { }
+        } message: {
+            Text("Du hast \(todaySets.count) von \(exercise.targetSets) Sätzen geschafft. Möchtest du wirklich aufhören?")
+        }
+        // ← FIX: Navigation nach Skip
+        .navigationDestination(item: $skipTarget) { exercise in
+            ExerciseDetailView(exercise: exercise)
+        }
         .onAppear {
-            // Letztes Gewicht vorausfüllen
             weightInput = suggestedWeight
             repsInput   = exercise.lastReps(period: isInPeriod).map(String.init) ?? ""
         }
         .onChange(of: isInPeriod) { _, _ in
-            // Felder aktualisieren wenn Modus wechselt
             weightInput = suggestedWeight
             repsInput   = exercise.lastReps(period: isInPeriod).map(String.init) ?? ""
         }
@@ -89,6 +195,194 @@ struct ExerciseDetailView: View {
             if showTimer {
                 RestTimerView(isShowing: $showTimer, setNumber: lastSetNumber)
                     .transition(.opacity)
+            }
+        }
+    }
+
+    // ───────────────────────────────────────────
+    // MARK: – Fortschritts-Card
+    // ───────────────────────────────────────────
+    
+    var progressCard: some View {
+        VStack(spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Satz \(todaySets.count) von \(exercise.targetSets)")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    Text(progress >= 1.0 ? "Geschafft! 🎉" : "Weiter so! 💪")
+                        .font(.caption)
+                        .foregroundColor(progress >= 1.0 ? .green : .secondary)
+                }
+                Spacer()
+                
+                // Kreisförmiger Fortschritt
+                ZStack {
+                    Circle()
+                        .stroke(accentColor.opacity(0.2), lineWidth: 6)
+                        .frame(width: 50, height: 50)
+                    Circle()
+                        .trim(from: 0, to: progress)
+                        .stroke(accentColor, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                        .frame(width: 50, height: 50)
+                        .rotationEffect(.degrees(-90))
+                    Text("\(Int(progress * 100))%")
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .foregroundColor(accentColor)
+                }
+            }
+            
+            // Fortschrittsbalken
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(accentColor.opacity(0.2))
+                        .frame(height: 8)
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(accentColor)
+                        .frame(width: geo.size.width * progress, height: 8)
+                }
+            }
+            .frame(height: 8)
+        }
+        .padding(16)
+        .background(
+            LinearGradient(
+                colors: [accentColor.opacity(0.1), accentColor.opacity(0.05)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
+        .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(accentColor.opacity(0.3), lineWidth: 2)
+        )
+    }
+    
+    // ───────────────────────────────────────────
+    // MARK: – Quick Actions
+    // ───────────────────────────────────────────
+    
+    var quickActionsRow: some View {
+        HStack(spacing: 12) {
+            // Letztes Gewicht übernehmen
+            if let lastWeight = exercise.lastWeight(period: isInPeriod),
+               let lastReps = exercise.lastReps(period: isInPeriod) {
+                Button {
+                    withAnimation(.spring(response: 0.3)) {
+                        weightInput = String(format: "%.1f", lastWeight)
+                        repsInput = "\(lastReps)"
+                        let generator = UIImpactFeedbackGenerator(style: .light)
+                        generator.impactOccurred()
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.counterclockwise.circle.fill")
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Letztes Mal")
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                            Text("\(String(format: "%.1f", lastWeight)) kg · \(lastReps) Wdh")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                        }
+                    }
+                    .foregroundColor(accentColor)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(accentColor.opacity(0.1))
+                    .cornerRadius(12)
+                }
+            }
+            
+            Spacer()
+            
+            // +5kg / +2.5kg Quick Buttons
+            HStack(spacing: 6) {
+                quickWeightButton("+2.5kg", value: 2.5)
+                quickWeightButton("+5kg", value: 5.0)
+            }
+        }
+    }
+    
+    func quickWeightButton(_ label: String, value: Double) -> some View {
+        Button {
+            if let current = Double(weightInput) {
+                weightInput = String(format: "%.1f", current + value)
+            } else if let suggested = Double(suggestedWeight) {
+                weightInput = String(format: "%.1f", suggested + value)
+            }
+            let generator = UIImpactFeedbackGenerator(style: .rigid)
+            generator.impactOccurred()
+        } label: {
+            Text(label)
+                .font(.caption)
+                .fontWeight(.bold)
+                .foregroundColor(accentColor)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(accentColor.opacity(0.15))
+                .cornerRadius(8)
+        }
+    }
+    
+    // ───────────────────────────────────────────
+    // MARK: – Bottom Navigation Buttons
+    // ───────────────────────────────────────────
+    
+    var bottomNavigationButtons: some View {
+        HStack(spacing: 12) {
+            // Zurück zur vorherigen Übung
+            if let prev = previousExercise {
+                NavigationLink(destination: ExerciseDetailView(exercise: prev)) {
+                    HStack {
+                        Image(systemName: "chevron.left.circle.fill")
+                        Text("Zurück")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(14)
+                    .background(Color(uiColor: UIColor.systemGray5))
+                    .foregroundColor(.primary)
+                    .cornerRadius(12)
+                }
+            }
+            
+            // Weiter zur nächsten / Fertig
+            if let next = nextExercise {
+                NavigationLink(destination: ExerciseDetailView(exercise: next)) {
+                    HStack {
+                        Text("Nächste Übung")
+                            .fontWeight(.semibold)
+                        Image(systemName: "chevron.right.circle.fill")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(14)
+                    .background(accentColor)
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+                }
+            } else {
+                Button {
+                    if progress >= 1.0 {
+                        dismiss()
+                    } else {
+                        showFinishHint = true
+                    }
+                } label: {
+                    HStack {
+                        Text("Training fertig")
+                            .fontWeight(.bold)
+                        Image(systemName: "checkmark.circle.fill")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(14)
+                    .background(Color.green)
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+                }
             }
         }
     }
@@ -359,17 +653,14 @@ struct ExerciseDetailView: View {
         newSet.exercise = exercise
         context.insert(newSet)
 
-        // Felder zurücksetzen (Gewicht behalten als Vorschlag)
         repsInput   = ""
         noteInput   = ""
 
-        // Timer starten
         lastSetNumber = todaySets.count + 1
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             withAnimation(.spring(response: 0.4)) { showTimer = true }
         }
 
-        // Kurzes Feedback
         withAnimation {
             savedBanner = true
         }

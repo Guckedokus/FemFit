@@ -8,14 +8,29 @@ struct HomeView: View {
     @Environment(\.modelContext) private var context
 
     @Query(sort: \WorkoutProgram.createdAt) private var programs: [WorkoutProgram]
+    @Query(sort: \WorkoutSession.startTime, order: .reverse) private var allSessions: [WorkoutSession]
 
     @State private var showAddProgram = false
     @State private var newProgramName = ""
     @State private var showAddDay     = false
     @State private var newDayName     = ""
     @State private var selectedProgram: WorkoutProgram?
+    @State private var showTemplates = false
 
     var activeProgram: WorkoutProgram? { programs.first }
+    
+    var completedSessions: [WorkoutSession] {
+        allSessions.filter { $0.endTime != nil }
+    }
+    
+    var thisWeekSessions: Int {
+        let weekAgo = Calendar.current.date(byAdding: .weekOfYear, value: -1, to: .now) ?? .now
+        return completedSessions.filter { $0.startTime >= weekAgo }.count
+    }
+    
+    var activeSession: WorkoutSession? {
+        allSessions.first { $0.endTime == nil }
+    }
 
     var body: some View {
         NavigationStack {
@@ -23,6 +38,14 @@ struct HomeView: View {
                 VStack(spacing: 0) {
                     headerSection
                     VStack(spacing: 20) {
+                        // Aktive Session Banner - Größer & auffälliger
+                        if let session = activeSession {
+                            activeSessionBannerEnhanced(session)
+                        }
+                        
+                        // Motivations-Card (NEU!)
+                        motivationCard
+                        
                         statsRow
                         if let program = activeProgram {
                             todaySection(program)
@@ -38,7 +61,19 @@ struct HomeView: View {
             .ignoresSafeArea(edges: .top)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { showAddProgram = true } label: {
+                    Menu {
+                        Button {
+                            showTemplates = true
+                        } label: {
+                            Label("Template nutzen", systemImage: "sparkles")
+                        }
+                        
+                        Button {
+                            showAddProgram = true
+                        } label: {
+                            Label("Eigenes Programm", systemImage: "plus")
+                        }
+                    } label: {
                         Image(systemName: "plus")
                             .foregroundColor(.white)
                     }
@@ -53,6 +88,9 @@ struct HomeView: View {
                 TextField("Name (z.B. Push, Pull, Legs)", text: $newDayName)
                 Button("Hinzufügen") { addDay() }
                 Button("Abbrechen", role: .cancel) { newDayName = "" }
+            }
+            .sheet(isPresented: $showTemplates) {
+                TemplatePickerView()
             }
         }
     }
@@ -78,7 +116,7 @@ struct HomeView: View {
                             .tracking(1)
                             .textCase(.uppercase)
                             .foregroundColor(Color(hex: "#C9A0D4"))
-                        Text("Guten Morgen,")
+                        Text(greetingText)
                             .font(.system(size: 20))
                             .foregroundColor(.white)
                         Text(greetingName)
@@ -94,7 +132,7 @@ struct HomeView: View {
                     .labelsHidden()
                     .padding(.top, 4)
                 }
-                .padding(.top, 60)
+                .padding(.top, 10) // Reduziert von 60
 
                 HStack(spacing: 16) {
                     cycleRing.frame(width: 90, height: 90)
@@ -131,6 +169,8 @@ struct HomeView: View {
             }
             .padding(.horizontal, 20)
         }
+        .frame(height: 280) // Fixe Höhe
+        .padding(.top, 1) // Damit SafeArea berücksichtigt wird
     }
 
     var cycleRing: some View {
@@ -169,16 +209,214 @@ struct HomeView: View {
     var greetingName: String {
         UserDefaults.standard.string(forKey: "userName") ?? "Nicole"
     }
+    
+    var greetingText: String {
+        let hour = Calendar.current.component(.hour, from: Date())
+        switch hour {
+        case 5..<12: return "Guten Morgen,"
+        case 12..<18: return "Guten Tag,"
+        case 18..<22: return "Guten Abend,"
+        default: return "Gute Nacht,"
+        }
+    }
+    
+    // MARK: – Enhanced Active Session Banner (NEU!)
+    func activeSessionBannerEnhanced(_ session: WorkoutSession) -> some View {
+        VStack(spacing: 0) {
+            // Oberer Teil - Animation
+            HStack {
+                // Pulsierender Kreis
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: "#1D9E75").opacity(0.2))
+                        .frame(width: 50, height: 50)
+                    Circle()
+                        .fill(Color(hex: "#1D9E75"))
+                        .frame(width: 12, height: 12)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text("TRAINING LÄUFT")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .tracking(1)
+                        Image(systemName: "bolt.fill")
+                            .font(.caption)
+                    }
+                    .foregroundColor(Color(hex: "#1D9E75"))
+                    
+                    if let day = session.workoutDay {
+                        Text(day.name)
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+                }
+                
+                Spacer()
+                
+                // Große Zeit-Anzeige
+                VStack(spacing: 2) {
+                    Text(session.durationFormatted)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(Color(hex: "#1D9E75"))
+                    Text("Minuten")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(20)
+            
+            // Unterer Teil - Quick Actions
+            HStack(spacing: 12) {
+                // Zum Training springen
+                if let day = session.workoutDay {
+                    NavigationLink(destination: WorkoutDayView(day: day)) {
+                        HStack {
+                            Image(systemName: "arrow.right.circle.fill")
+                            Text("Weiter trainieren")
+                                .fontWeight(.semibold)
+                        }
+                        .font(.subheadline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color(hex: "#1D9E75"))
+                        .cornerRadius(10)
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 20)
+        }
+        .background(
+            LinearGradient(
+                colors: [Color(hex: "#1D9E75").opacity(0.15), Color(hex: "#1D9E75").opacity(0.05)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .cornerRadius(20)
+        .overlay(
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(Color(hex: "#1D9E75").opacity(0.3), lineWidth: 2)
+        )
+        .shadow(color: Color(hex: "#1D9E75").opacity(0.2), radius: 10, y: 5)
+    }
+    
+    // MARK: – Motivations-Card (NEU!)
+    var motivationCard: some View {
+        let totalSessions = completedSessions.count
+        let message: String
+        let icon: String
+        let color: Color
+        
+        if totalSessions == 0 {
+            message = "Starte dein erstes Training! 🚀"
+            icon = "star.fill"
+            color = Color(hex: "#F4A623")
+        } else if totalSessions < 5 {
+            message = "Du bist auf einem guten Weg! Bleib dran! 💪"
+            icon = "flame.fill"
+            color = Color(hex: "#E84393")
+        } else if thisWeekSessions >= 3 {
+            message = "Wow! Schon \(thisWeekSessions)x diese Woche trainiert! 🔥"
+            icon = "trophy.fill"
+            color = Color(hex: "#F4A623")
+        } else if cycleManager.isInPeriod {
+            message = "Angepasster Modus - perfekt für deinen Zyklus! 🌸"
+            icon = "heart.fill"
+            color = Color(hex: "#E84393")
+        } else {
+            message = "Zeit für eine neue Session! Los geht's! ⚡"
+            icon = "bolt.fill"
+            color = Color(hex: "#1D9E75")
+        }
+        
+        return HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(color.opacity(0.2))
+                    .frame(width: 44, height: 44)
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundColor(color)
+            }
+            
+            Text(message)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundColor(.primary)
+            
+            Spacer()
+        }
+        .padding(16)
+        .background(color.opacity(0.08))
+        .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(color.opacity(0.2), lineWidth: 1)
+        )
+    }
+    
+    // MARK: – Old Active Session Banner (behalten für Fallback)
+    func activeSessionBanner(_ session: WorkoutSession) -> some View {
+        VStack(spacing: 8) {
+            HStack {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(Color(hex: "#1D9E75"))
+                        .frame(width: 10, height: 10)
+                    Text("Training läuft")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(Color(hex: "#1D9E75"))
+                }
+                Spacer()
+                Text(session.durationFormatted)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            if let day = session.workoutDay {
+                HStack {
+                    Text(day.name)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+            }
+        }
+        .padding(14)
+        .background(Color(hex: "#1D9E75").opacity(0.1))
+        .cornerRadius(12)
+    }
 
     // MARK: – Stats
     var statsRow: some View {
         HStack(spacing: 10) {
-            StatCard(value: "\(activeProgram?.completedWorkouts ?? 0)",
-                     label: "Workouts", sublabel: "gesamt")
-            StatCard(value: "\(activeProgram?.days.count ?? 0)",
-                     label: "Trainingstage", sublabel: "im Programm")
-            StatCard(value: "\(cycleManager.daysUntilNextPeriod)",
-                     label: "Bis Periode", sublabel: "Tage")
+            StatCardEnhanced(
+                value: "\(completedSessions.count)",
+                label: "Sessions",
+                sublabel: "abgeschlossen",
+                icon: "checkmark.circle.fill",
+                color: Color(hex: "#1D9E75")
+            )
+            StatCardEnhanced(
+                value: "\(thisWeekSessions)",
+                label: "Diese Woche",
+                sublabel: "Sessions",
+                icon: "calendar",
+                color: Color(hex: "#4A90D9")
+            )
+            StatCardEnhanced(
+                value: "\(cycleManager.daysUntilNextPeriod)",
+                label: "Bis Periode",
+                sublabel: "Tage",
+                icon: cycleManager.isInPeriod ? "heart.fill" : "clock.fill",
+                color: cycleManager.isInPeriod ? Color(hex: "#E84393") : Color(hex: "#7B68EE")
+            )
         }
     }
 
@@ -236,14 +474,63 @@ struct HomeView: View {
                 .font(.subheadline)
                 .foregroundColor(Color(hex: "#A06080"))
                 .multilineTextAlignment(.center)
-            Button { showAddProgram = true } label: {
-                Label("Programm erstellen", systemImage: "plus.circle.fill")
-                    .font(.headline)
+            
+            // Zwei Optionen
+            VStack(spacing: 12) {
+                // Template nutzen (Empfohlen!)
+                Button {
+                    showTemplates = true
+                } label: {
+                    HStack {
+                        Image(systemName: "sparkles")
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Template nutzen")
+                                .fontWeight(.bold)
+                            Text("Vorgefertigt & professionell")
+                                .font(.caption)
+                        }
+                        Spacer()
+                        Text("Empfohlen!")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color(hex: "#F4A623"))
+                            .foregroundColor(.white)
+                            .cornerRadius(8)
+                    }
                     .foregroundColor(.white)
+                    .padding(16)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        LinearGradient(
+                            colors: [Color(hex: "#E84393"), Color(hex: "#E84393").opacity(0.8)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(14)
+                }
+                
+                // Eigenes Programm
+                Button {
+                    showAddProgram = true
+                } label: {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                        Text("Eigenes Programm erstellen")
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(Color(hex: "#E84393"))
                     .frame(maxWidth: .infinity)
                     .padding(14)
-                    .background(Color(hex: "#E84393"))
+                    .background(Color.white)
                     .cornerRadius(14)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(Color(hex: "#E84393"), lineWidth: 2)
+                    )
+                }
             }
         }
         .padding(.top, 40)
@@ -267,7 +554,56 @@ struct HomeView: View {
     }
 }
 
-// MARK: – Stat Card
+// MARK: – Stat Card Enhanced (NEU!)
+struct StatCardEnhanced: View {
+    let value: String
+    let label: String
+    let sublabel: String
+    let icon: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            // Icon oben
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundColor(color)
+            
+            // Wert
+            Text(value)
+                .font(.system(size: 28, weight: .bold))
+                .foregroundColor(color)
+            
+            // Labels
+            VStack(spacing: 2) {
+                Text(label)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+                Text(sublabel)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+        .padding(.horizontal, 8)
+        .background(
+            LinearGradient(
+                colors: [color.opacity(0.1), color.opacity(0.05)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+        .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(color.opacity(0.3), lineWidth: 1.5)
+        )
+    }
+}
+
+// MARK: – Stat Card (Alt - behalten)
 struct StatCard: View {
     let value: String
     let label: String
@@ -333,45 +669,84 @@ struct QuickAccessCard: View {
 
 // MARK: – WorkoutDayCard
 struct WorkoutDayCard: View {
-    var cycleManager = CycleManager.shared
+    @Bindable var cycleManager = CycleManager.shared
     let day: WorkoutDay
 
     var accentColor: Color {
         cycleManager.isInPeriod ? Color(hex: "#E84393") : Color(hex: "#1D9E75")
     }
+    
+    // Heutige Sessions
+    var todaySessions: Int {
+        day.sessions.filter { Calendar.current.isDateInToday($0.startTime) }.count
+    }
 
     var body: some View {
-        HStack(spacing: 14) {
-            ZStack {
-                Circle()
-                    .stroke(accentColor.opacity(0.2), lineWidth: 4)
-                Circle()
-                    .trim(from: 0, to: day.completionPercent)
-                    .stroke(accentColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                Text("\(Int(day.completionPercent * 100))%")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(accentColor)
-            }
-            .frame(width: 44, height: 44)
+        VStack(spacing: 0) {
+            HStack(spacing: 14) {
+                // Fortschritts-Ring - größer
+                ZStack {
+                    Circle()
+                        .stroke(accentColor.opacity(0.15), lineWidth: 5)
+                    Circle()
+                        .trim(from: 0, to: day.completionPercent)
+                        .stroke(accentColor, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                    
+                    Text("\(Int(day.completionPercent * 100))%")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(accentColor)
+                }
+                .frame(width: 52, height: 52)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(day.name)
-                    .font(.headline)
-                    .foregroundColor(Color(hex: "#2D1B2E"))
-                Text("\(day.exercises.count) Übungen · \(day.completedSessions) Sessions")
-                    .font(.caption)
-                    .foregroundColor(Color(hex: "#A06080"))
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(day.name)
+                        .font(.headline)
+                        .foregroundColor(Color(hex: "#2D1B2E"))
+                    
+                    HStack(spacing: 12) {
+                        Label("\(day.exercises.count)", systemImage: "dumbbell.fill")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Label("\(day.completedSessions)", systemImage: "checkmark.circle")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    // Heutige Sessions-Anzeige
+                    if todaySessions > 0 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "flame.fill")
+                                .font(.caption2)
+                            Text("Heute \(todaySessions)x trainiert!")
+                                .font(.caption2)
+                                .fontWeight(.semibold)
+                        }
+                        .foregroundColor(accentColor)
+                    }
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right.circle.fill")
+                    .font(.title3)
+                    .foregroundColor(accentColor.opacity(0.7))
             }
-            Spacer()
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundColor(Color(hex: "#C9A0B8"))
+            .padding(16)
         }
-        .padding(14)
-        .background(Color.white)
-        .cornerRadius(14)
-        .overlay(RoundedRectangle(cornerRadius: 14)
-            .stroke(Color(hex: "#F0D4E0"), lineWidth: 0.5))
+        .background(
+            LinearGradient(
+                colors: [Color.white, accentColor.opacity(0.02)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(accentColor.opacity(0.2), lineWidth: 1.5)
+        )
+        .shadow(color: accentColor.opacity(0.1), radius: 8, y: 4)
     }
 }

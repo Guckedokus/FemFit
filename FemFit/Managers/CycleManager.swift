@@ -103,6 +103,24 @@ class CycleManager {
 // ───────────────────────────────────────────
 
 extension CycleManager {
+    
+    // Berechne Streak basierend auf Sessions
+    func calculateStreak(sessions: [WorkoutSession]) -> Int {
+        let completedSessions = sessions.filter { $0.endTime != nil }
+        guard !completedSessions.isEmpty else { return 0 }
+        
+        var streak = 0
+        var date = Calendar.current.startOfDay(for: .now)
+        let sessionDates = Set(completedSessions.map { Calendar.current.startOfDay(for: $0.startTime) })
+        
+        while sessionDates.contains(date) {
+            streak += 1
+            guard let previousDay = Calendar.current.date(byAdding: .day, value: -1, to: date) else { break }
+            date = previousDay
+        }
+        
+        return streak
+    }
 
     func requestNotificationPermission() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in

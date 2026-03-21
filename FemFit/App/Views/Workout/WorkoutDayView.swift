@@ -19,21 +19,49 @@ struct WorkoutDayView: View {
     @State private var editName = ""
     @State private var editSets = "3"
     @State private var editReps = "10"
+    @State private var showFinishConfirmation = false
+    @State private var showStartPrompt = false
+    @State private var hasShownPrompt = false
 
     var accentColor: Color {
         cycleManager.isInPeriod ? Color(hex: "#E84393") : Color(hex: "#1D9E75")
     }
 
     var modeLabel: String {
-        cycleManager.isInPeriod ? "🌸 Perioden-Gewichte" : "💪 Normal-Gewichte"
+        cycleManager.isInPeriod ? "🌸 Angepasste Gewichte" : "💪 Voll-Power Gewichte"
+    }
+    
+    var hasActiveSession: Bool {
+        day.activeSession != nil
     }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 14) {
 
+                // ── Session-Status Banner ──
+                if let session = day.activeSession {
+                    activeSessionBanner(session: session)
+                }
+
                 // ── Modus-Toggle ──
                 modeToggle
+                
+                // ── Info wenn Modus gesperrt ──
+                if hasActiveSession {
+                    HStack(spacing: 8) {
+                        Image(systemName: "lock.fill")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                        Text("Modus während Training gesperrt")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(8)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(8)
+                }
 
                 // ── Info-Banner wenn Periode aktiv ──
                 if cycleManager.isInPeriod {
@@ -85,6 +113,11 @@ struct WorkoutDayView: View {
                         .background(Color(uiColor: UIColor.systemGray6))
                         .cornerRadius(12)
                 }
+                
+                // ── Training starten / beenden ──
+                if !day.sortedExercises.isEmpty {
+                    workoutControlButton
+                }
 
                 Spacer(minLength: 40)
             }
@@ -92,6 +125,21 @@ struct WorkoutDayView: View {
         }
         .navigationTitle(day.name)
         .navigationBarTitleDisplayMode(.large)
+        .onAppear {
+            // Zeige Prompt nur einmal beim Öffnen UND wenn kein aktives Training läuft
+            if !hasShownPrompt && !hasActiveSession {
+                showStartPrompt = true
+                hasShownPrompt = true
+            }
+        }
+        .alert("Neues Training starten?", isPresented: $showStartPrompt) {
+            Button("Ja, starten!", role: .none) {
+                startWorkout()
+            }
+            Button("Nein, nur ansehen", role: .cancel) { }
+        } message: {
+            Text("Möchtest du jetzt ein neues Training für '\(day.name)' starten?")
+        }
         .sheet(isPresented: $showAddExercise) {
             ExercisePickerView(day: day)
         }
@@ -132,6 +180,129 @@ struct WorkoutDayView: View {
             }
             .presentationDetents([.medium])
         }
+        .sheet(isPresented: $showFinishConfirmation) {
+            if let session = day.activeSession {
+                WorkoutFinishView(session: session, day: day, onFinish: { finishWorkout() })
+            }
+        }
+    }
+
+    // ───────────────────────────────────────────
+    // MARK: – Session Status Banner
+    // ───────────────────────────────────────────
+    
+    func activeSessionBanner(session: WorkoutSession) -> some View {
+        VStack(spacing: 8) {
+            HStack {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(accentColor)
+                        .frame(width: 10, height: 10)
+                    Text("Training läuft")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(accentColor)
+                }
+                Spacer()
+                Text(session.durationFormatted)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            // Fortschritt
+            HStack(spacing: 6) {
+                Text("\(day.todayCompletedExercises) von \(day.sortedExercises.count) Übungen")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+        }
+        .padding(14)
+        .background(accentColor.opacity(0.1))
+        .cornerRadius(12)
+    }
+    
+    // ───────────────────────────────────────────
+    // MARK: – Workout Control Button
+    // ───────────────────────────────────────────
+    
+    var workoutControlButton: some View {
+        VStack(spacing: 8) {
+            Button {
+                if hasActiveSession {
+                    showFinishConfirmation = true
+                } else {
+                    startWorkout()
+                }
+            } label: {
+                HStack {
+                    Image(systemName: hasActiveSession ? "checkmark.circle.fill" : "play.circle.fill")
+                        .font(.title3)
+                    Text(hasActiveSession ? "Training beenden" : "Neues Training starten")
+                        .fontWeight(.semibold)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(16)
+                .background(hasActiveSession ? Color.green : accentColor)
+                .foregroundColor(.white)
+                .cornerRadius(14)
+            }
+            
+            // Info-Text
+            if !hasActiveSession {
+                let todaySessions = day.sessions.filter { 
+                    Calendar.current.isDateInToday($0.startTime) 
+                }
+                if !todaySessions.isEmpty {
+                    Text("Heute schon \(todaySessions.count) Training(s) absolviert")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+    }
+    
+    // ───────────────────────────────────────────
+    // MARK: – Session Management
+    // ───────────────────────────────────────────
+    
+    func startWorkout() {
+        // Neue Session erstellen (jede Session ist separat!)
+        let session = WorkoutSession(workoutDay: day, isDuringPeriod: cycleManager.isInPeriod)
+        context.insert(session)
+        
+        do {
+            try context.save()
+            print("✅ Neues Training gestartet!")
+            
+            // Zähle heutige Sessions
+            let todaySessions = day.sessions.filter { 
+                Calendar.current.isDateInToday($0.startTime) 
+            }
+            print("📊 Training #\(todaySessions.count) heute")
+        } catch {
+            print("❌ Fehler beim Starten: \(error)")
+        }
+    }
+    
+    func finishWorkout() {
+        guard let session = day.activeSession else { return }
+        session.endTime = .now
+        session.completedExerciseCount = day.todayCompletedExercises
+        
+        // Speichern
+        do {
+            try context.save()
+            print("✅ Session beendet und gespeichert!")
+        } catch {
+            print("❌ Fehler beim Speichern der Session: \(error)")
+        }
+        
+        // Sheet schließen
+        showFinishConfirmation = false
+        
+        // Prompt-Flag zurücksetzen, damit beim nächsten Öffnen wieder gefragt wird
+        hasShownPrompt = false
     }
 
     // ───────────────────────────────────────────
@@ -140,20 +311,25 @@ struct WorkoutDayView: View {
 
     var modeToggle: some View {
         HStack(spacing: 0) {
-            // Normal-Taste
+            // Voll-Power Button
             Button {
                 withAnimation(.spring(response: 0.3)) {
                     cycleManager.isInPeriod = false
                 }
             } label: {
                 HStack(spacing: 6) {
+                    // Icon nur wenn aktiv
+                    if !cycleManager.isInPeriod {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.caption)
+                    }
                     Text("💪")
-                    Text("Normal")
-                        .fontWeight(.medium)
+                    Text("Voll-Power")
+                        .fontWeight(cycleManager.isInPeriod ? .regular : .semibold)
                 }
                 .font(.subheadline)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
+                .padding(.vertical, 12)
                 .background(
                     !cycleManager.isInPeriod
                     ? Color(hex: "#1D9E75")
@@ -161,21 +337,27 @@ struct WorkoutDayView: View {
                 )
                 .foregroundColor(!cycleManager.isInPeriod ? .white : .secondary)
             }
+            .disabled(hasActiveSession)  // ← Während Session nicht wechselbar!
 
-            // Perioden-Taste
+            // Angepasst Button
             Button {
                 withAnimation(.spring(response: 0.3)) {
                     cycleManager.isInPeriod = true
                 }
             } label: {
                 HStack(spacing: 6) {
+                    // Icon nur wenn aktiv
+                    if cycleManager.isInPeriod {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.caption)
+                    }
                     Text("🌸")
-                    Text("Periode")
-                        .fontWeight(.medium)
+                    Text("Angepasst")
+                        .fontWeight(cycleManager.isInPeriod ? .semibold : .regular)
                 }
                 .font(.subheadline)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
+                .padding(.vertical, 12)
                 .background(
                     cycleManager.isInPeriod
                     ? Color(hex: "#E84393")
@@ -183,10 +365,16 @@ struct WorkoutDayView: View {
                 )
                 .foregroundColor(cycleManager.isInPeriod ? .white : .secondary)
             }
+            .disabled(hasActiveSession)  // ← Während Session nicht wechselbar!
         }
         .background(Color(uiColor: UIColor.systemGray6))
         .cornerRadius(12)
         .animation(.spring(response: 0.3), value: cycleManager.isInPeriod)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(accentColor.opacity(0.3), lineWidth: 2)
+        )
+        .opacity(hasActiveSession ? 0.6 : 1.0)  // ← Visuelles Feedback
     }
 
     // ───────────────────────────────────────────
@@ -198,10 +386,10 @@ struct WorkoutDayView: View {
             Image(systemName: "heart.fill")
                 .foregroundColor(Color(hex: "#E84393"))
             VStack(alignment: .leading, spacing: 2) {
-                Text("Perioden-Modus aktiv")
+                Text("Angepasster Modus aktiv")
                     .font(.subheadline).fontWeight(.semibold)
                     .foregroundColor(Color(hex: "#880E4F"))
-                Text("Deine angepassten Gewichte werden angezeigt. Kein Vergleich mit Normal-Werten nötig!")
+                Text("Deine Gewichte sind auf deinen Zyklus abgestimmt. Perfekt angepasst!")
                     .font(.caption)
                     .foregroundColor(Color(hex: "#AD1457"))
             }

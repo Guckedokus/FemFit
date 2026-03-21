@@ -22,6 +22,9 @@ import SwiftData
     var program: WorkoutProgram?
     @Relationship(deleteRule: .cascade, inverse: \Exercise.day)
     var exercises: [Exercise] = []
+    @Relationship(deleteRule: .cascade, inverse: \WorkoutSession.workoutDay)
+    var sessions: [WorkoutSession] = []
+    
     init(name: String, order: Int) { self.name = name; self.order = order }
     var sortedExercises: [Exercise] { exercises.sorted { $0.order < $1.order } }
     var completionPercent: Double {
@@ -30,8 +33,24 @@ import SwiftData
         return Double(logged) / Double(exercises.count)
     }
     var completedSessions: Int {
-        let allDates = exercises.flatMap { $0.sets }.map { Calendar.current.startOfDay(for: $0.date) }
-        return Set(allDates).count
+        sessions.filter { $0.endTime != nil }.count
+    }
+    
+    // Aktive Session heute
+    var activeSession: WorkoutSession? {
+        let today = Calendar.current.startOfDay(for: .now)
+        return sessions.first {
+            $0.isActive && Calendar.current.startOfDay(for: $0.date) == today
+        }
+    }
+    
+    // Heutige abgeschlossene Übungen
+    var todayCompletedExercises: Int {
+        let today = Calendar.current.startOfDay(for: .now)
+        return exercises.filter { exercise in
+            let todaySets = exercise.sets.filter { Calendar.current.startOfDay(for: $0.date) == today }
+            return !todaySets.isEmpty
+        }.count
     }
 }
 
@@ -102,3 +121,44 @@ import SwiftData
     var unlockedAt: Date
     init(id: String) { self.id = id; self.unlockedAt = .now }
 }
+
+// ── Workout Session ────────────────────────
+@Model final class WorkoutSession {
+    var date: Date
+    var workoutDay: WorkoutDay?
+    var startTime: Date
+    var endTime: Date?
+    var isDuringPeriod: Bool
+    var completedExerciseCount: Int
+    
+    init(workoutDay: WorkoutDay?, isDuringPeriod: Bool) {
+        self.date = Calendar.current.startOfDay(for: .now)
+        self.workoutDay = workoutDay
+        self.startTime = .now
+        self.isDuringPeriod = isDuringPeriod
+        self.completedExerciseCount = 0
+    }
+    
+    var duration: TimeInterval {
+        if let end = endTime {
+            return end.timeIntervalSince(startTime)
+        }
+        return Date.now.timeIntervalSince(startTime)
+    }
+    
+    var durationFormatted: String {
+        let mins = Int(duration / 60)
+        if mins < 60 {
+            return "\(mins) Min"
+        } else {
+            let hours = mins / 60
+            let remainingMins = mins % 60
+            return "\(hours)h \(remainingMins)m"
+        }
+    }
+    
+    var isActive: Bool {
+        endTime == nil
+    }
+}
+

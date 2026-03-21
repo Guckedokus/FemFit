@@ -10,8 +10,15 @@ struct FemFitApp: App {
     }
 
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema([WorkoutProgram.self, WorkoutDay.self, Exercise.self,
-                             WorkoutSet.self, BodyMeasurement.self, Achievement.self])
+        let schema = Schema([
+            WorkoutProgram.self,
+            WorkoutDay.self,
+            Exercise.self,
+            WorkoutSet.self,
+            WorkoutSession.self,  // ← FEHLTE!
+            BodyMeasurement.self,
+            Achievement.self
+        ])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false, cloudKitDatabase: .automatic)
         do {
             return try ModelContainer(for: schema, configurations: [config])

@@ -11,21 +11,15 @@ struct ProgressChartView: View {
     @State private var selectedExercise: Exercise?
     @State private var showBody       = false
     @State private var showAchievements = false
+    @State private var showHistory = false
+    @State private var showRestDay = false
 
     var loggedExercises: [Exercise] { exercises.filter { !$0.sets.isEmpty } }
 
-    // Streak für Achievements
-    @Query private var allSets: [WorkoutSet]
+    // Streak für Achievements (basierend auf Sessions)
+    @Query private var allSessions: [WorkoutSession]
     var currentStreak: Int {
-        var streak = 0
-        var date = Calendar.current.startOfDay(for: .now)
-        let fmt = DateFormatter(); fmt.dateFormat = "yyyy-MM-dd"
-        let trained = Set(allSets.map { fmt.string(from: $0.date) })
-        while trained.contains(fmt.string(from: date)) {
-            streak += 1
-            date = Calendar.current.date(byAdding: .day, value: -1, to: date)!
-        }
-        return streak
+        cycleManager.calculateStreak(sessions: allSessions)
     }
 
     var body: some View {
@@ -36,6 +30,11 @@ struct ProgressChartView: View {
                 HStack(spacing: 12) {
                     quickLink(icon: "scalemass.fill", label: "Körpermaße", color: Color(hex: "#1D9E75")) { showBody = true }
                     quickLink(icon: "trophy.fill",   label: "Achievements", color: Color(hex: "#F4A623")) { showAchievements = true }
+                }
+                
+                HStack(spacing: 12) {
+                    quickLink(icon: "clock.fill", label: "Trainings-Historie", color: Color(hex: "#4A90D9")) { showHistory = true }
+                    quickLink(icon: "bed.double.fill", label: "Ruhetag-Tracker", color: Color(hex: "#7B68EE")) { showRestDay = true }
                 }
 
                 if loggedExercises.isEmpty {
@@ -56,6 +55,8 @@ struct ProgressChartView: View {
         .onAppear { if selectedExercise == nil { selectedExercise = loggedExercises.first } }
         .sheet(isPresented: $showBody)         { NavigationStack { BodyTrackingView() } }
         .sheet(isPresented: $showAchievements) { NavigationStack { AchievementsView(streak: currentStreak) } }
+        .sheet(isPresented: $showHistory)      { NavigationStack { WorkoutHistoryView() } }
+        .sheet(isPresented: $showRestDay)      { NavigationStack { RestDayView() } }
     }
 
     func quickLink(icon: String, label: String, color: Color, action: @escaping () -> Void) -> some View {

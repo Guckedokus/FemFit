@@ -3,44 +3,17 @@
 import SwiftUI
 import SwiftData
 
-struct AchievementDef: Identifiable {
-    let id: String
-    let title: String
-    let desc: String
-    let icon: String
-    let color: Color
-    let check: ([WorkoutSet], [BodyMeasurement], Int) -> Bool
-}
-
 struct AchievementsView: View {
     @Query private var allSets: [WorkoutSet]
     @Query private var measurements: [BodyMeasurement]
     @Query private var unlocked: [Achievement]
+    @Query private var sessions: [WorkoutSession]
 
     var streak: Int  // wird von außen übergeben
 
-    let achievements: [AchievementDef] = [
-        .init(id: "first_set",    title: "Erster Satz!",       desc: "Du hast deinen ersten Satz geloggt",      icon: "figure.strengthtraining.traditional", color: Color(hex: "#1D9E75"),
-              check: { sets, _, _ in !sets.isEmpty }),
-        .init(id: "10_workouts",  title: "10 Workouts",         desc: "10 Trainingseinheiten absolviert",        icon: "dumbbell.fill",   color: Color(hex: "#F4A623"),
-              check: { sets, _, _ in Set(sets.map { Calendar.current.startOfDay(for: $0.date) }).count >= 10 }),
-        .init(id: "30_workouts",  title: "30 Workouts",         desc: "30 Trainingseinheiten – du bist dabei!",  icon: "trophy.fill",     color: Color(hex: "#F4A623"),
-              check: { sets, _, _ in Set(sets.map { Calendar.current.startOfDay(for: $0.date) }).count >= 30 }),
-        .init(id: "streak_7",     title: "7 Tage Streak",       desc: "7 Tage in Folge trainiert",               icon: "flame.fill",      color: Color(hex: "#E84393"),
-              check: { _, _, streak in streak >= 7 }),
-        .init(id: "streak_30",    title: "30 Tage Streak",      desc: "30 Tage in Folge – unglaublich!",         icon: "flame.fill",      color: Color(hex: "#E84393"),
-              check: { _, _, streak in streak >= 30 }),
-        .init(id: "period_train", title: "Periode-Kriegerin",   desc: "Während der Periode trainiert",           icon: "moon.fill",       color: Color(hex: "#7B68EE"),
-              check: { sets, _, _ in sets.contains { $0.isDuringPeriod } }),
-        .init(id: "first_measure",title: "Selbstvermessung",    desc: "Erste Körpermessung eingetragen",         icon: "scalemass.fill",  color: Color(hex: "#4A90D9"),
-              check: { _, meas, _ in !meas.isEmpty }),
-        .init(id: "100_sets",     title: "100 Sätze",           desc: "100 Sätze absolviert – Respect!",         icon: "star.fill",       color: Color(hex: "#F4A623"),
-              check: { sets, _, _ in sets.count >= 100 }),
-        .init(id: "night_owl",    title: "Nachteule",           desc: "Nach 21 Uhr trainiert",                   icon: "moon.stars.fill", color: Color(hex: "#7B68EE"),
-              check: { sets, _, _ in sets.contains { Calendar.current.component(.hour, from: $0.date) >= 21 } }),
-        .init(id: "early_bird",   title: "Frühaufsteher",       desc: "Vor 7 Uhr trainiert",                     icon: "sunrise.fill",    color: Color(hex: "#F4A623"),
-              check: { sets, _, _ in sets.contains { Calendar.current.component(.hour, from: $0.date) < 7 } }),
-    ]
+    var achievements: [AchievementDef] {
+        allAchievementDefinitions
+    }
 
     var unlockedIDs: Set<String> { Set(unlocked.map { $0.id }) }
 
@@ -137,7 +110,7 @@ struct AchievementsView: View {
     @Environment(\.modelContext) private var context
     func checkAndUnlock() {
         for a in achievements {
-            if !unlockedIDs.contains(a.id) && a.check(allSets, measurements, streak) {
+            if !unlockedIDs.contains(a.id) && a.check(allSets, measurements, sessions, streak) {
                 context.insert(Achievement(id: a.id))
             }
         }
