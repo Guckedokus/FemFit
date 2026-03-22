@@ -57,15 +57,6 @@ struct HomeView: View {
                         
                         statsRow
                         
-                        // DEBUG: Zeige Anzahl der Programme
-                        if programs.isEmpty {
-                            Text("DEBUG: Keine Programme gefunden")
-                                .foregroundColor(.red)
-                        } else {
-                            Text("DEBUG: \(programs.count) Programm(e) gefunden")
-                                .foregroundColor(.green)
-                        }
-                        
                         if let program = activeProgram {
                             todaySection(program)
                             quickAccessRow
