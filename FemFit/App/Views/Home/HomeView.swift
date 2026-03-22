@@ -21,7 +21,9 @@ struct HomeView: View {
     @State private var selectedCalendarDay: Int?
     @State private var showDayDetail = false
 
-    var activeProgram: WorkoutProgram? { programs.first }
+    var activeProgram: WorkoutProgram? { 
+        programs.sorted(by: { $0.createdAt > $1.createdAt }).first 
+    }
     
     var completedSessions: [WorkoutSession] {
         allSessions.filter { $0.endTime != nil }
@@ -54,6 +56,16 @@ struct HomeView: View {
                         motivationCard
                         
                         statsRow
+                        
+                        // DEBUG: Zeige Anzahl der Programme
+                        if programs.isEmpty {
+                            Text("DEBUG: Keine Programme gefunden")
+                                .foregroundColor(.red)
+                        } else {
+                            Text("DEBUG: \(programs.count) Programm(e) gefunden")
+                                .foregroundColor(.green)
+                        }
+                        
                         if let program = activeProgram {
                             todaySection(program)
                             quickAccessRow
