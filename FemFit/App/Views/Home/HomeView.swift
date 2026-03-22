@@ -18,6 +18,8 @@ struct HomeView: View {
     @State private var showTemplates = false
     @State private var showPhaseInfo = false
     @State private var showPlanGenerator = false  // NEU: Plan-Generator
+    @State private var selectedCalendarDay: Int?
+    @State private var showDayDetail = false
 
     var activeProgram: WorkoutProgram? { programs.first }
     
@@ -44,6 +46,9 @@ struct HomeView: View {
                         if let session = activeSession {
                             activeSessionBannerEnhanced(session)
                         }
+                        
+                        // 📅 Kalender-Vorschau (NEU!)
+                        compactCalendarCard
                         
                         // Motivations-Card (NEU!)
                         motivationCard
@@ -107,6 +112,12 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showPlanGenerator) {
                 PlanGeneratorView()
+            }
+            .sheet(isPresented: $showDayDetail) {
+                if let dayOffset = selectedCalendarDay {
+                    DayDetailSheet(dayOffset: dayOffset, cycleManager: cycleManager)
+                        .presentationDetents([.medium, .large])
+                }
             }
         }
     }
@@ -393,6 +404,179 @@ struct HomeView: View {
         )
     }
     
+    // MARK: – Kompakter Kalender für Home (NEU!)
+    
+    var compactCalendarCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                HStack(spacing: 8) {
+                    Image(systemName: "calendar")
+                        .foregroundColor(Color(hex: "#E84393"))
+                    Text("Die nächsten 7 Tage")
+                        .font(.headline)
+                }
+                Spacer()
+                Text(cycleManager.currentPhase.emoji)
+                    .font(.title3)
+            }
+
+            // Kompakte 7-Tage Vorschau
+            HStack(spacing: 6) {
+                ForEach(0..<7, id: \.self) { dayOffset in
+                    compactCalendarDay(dayOffset: dayOffset)
+                }
+            }
+            
+            // Nächstes wichtiges Event
+            if let nextEvent = nextUpcomingEvent {
+                Divider()
+                    .padding(.vertical, 4)
+                
+                HStack(spacing: 8) {
+                    Text(nextEvent.icon)
+                        .font(.body)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(nextEvent.title)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Text(nextEvent.subtitle)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Text(nextEvent.daysText)
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundColor(nextEvent.color)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(nextEvent.color.opacity(0.15))
+                        .cornerRadius(6)
+                }
+            }
+            
+            // "Mehr anzeigen" Button
+            NavigationLink {
+                CycleTrackerView()
+            } label: {
+                HStack {
+                    Text("Vollständigen Kalender anzeigen")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                }
+                .foregroundColor(Color(hex: "#E84393"))
+                .padding(.top, 4)
+            }
+        }
+        .padding(16)
+        .background(Color.white)
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
+    }
+    
+    func compactCalendarDay(dayOffset: Int) -> some View {
+        let date = Calendar.current.date(byAdding: .day, value: dayOffset, to: Date()) ?? Date()
+        let dayNumber = Calendar.current.component(.day, from: date)
+        let weekday = Calendar.current.component(.weekday, from: date)
+        let weekdaySymbol = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][weekday - 1]
+        let phase = phaseForDate(date)
+        let isToday = dayOffset == 0
+        
+        return VStack(spacing: 4) {
+            Text(weekdaySymbol)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundColor(.secondary)
+                .textCase(.uppercase)
+            
+            Text("\(dayNumber)")
+                .font(.system(size: 14, weight: isToday ? .bold : .medium))
+                .foregroundColor(isToday ? .white : .primary)
+            
+            Circle()
+                .fill(phase.color)
+                .frame(width: 4, height: 4)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 60)
+        .background(isToday ? Color(hex: "#1D9E75") : phase.color.opacity(0.12))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(isToday ? Color(hex: "#1D9E75") : Color.clear, lineWidth: 2)
+        )
+        .onTapGesture {
+            selectedCalendarDay = dayOffset
+            showDayDetail = true
+        }
+    }
+    
+    // Hilfsfunktion für Phase-Berechnung
+    func phaseForDate(_ date: Date) -> CyclePhase {
+        let daysSinceStart = Calendar.current.dateComponents([.day], from: cycleManager.periodStartDate, to: date).day ?? 0
+        let dayInCycle = (daysSinceStart % cycleManager.cycleLength) + 1
+        
+        if dayInCycle <= cycleManager.periodLength {
+            return .menstruation
+        } else if dayInCycle <= 13 {
+            return .follicular
+        } else if dayInCycle <= 16 {
+            return .ovulation
+        } else {
+            return .luteal
+        }
+    }
+    
+    // Nächstes Event berechnen
+    var nextUpcomingEvent: (icon: String, title: String, subtitle: String, daysText: String, color: Color)? {
+        // Prüfe auf Periode
+        let daysUntilPeriod = cycleManager.daysUntilNextPeriod
+        if daysUntilPeriod <= 7 && daysUntilPeriod > 0 {
+            return (
+                icon: "🩸",
+                title: "Periode startet bald",
+                subtitle: "Gewichte werden automatisch angepasst",
+                daysText: "in \(daysUntilPeriod) Tag\(daysUntilPeriod == 1 ? "" : "en")",
+                color: Color(hex: "#E84393")
+            )
+        }
+        
+        // Prüfe auf Ovulation
+        for dayOffset in 0..<7 {
+            let date = Calendar.current.date(byAdding: .day, value: dayOffset, to: Date()) ?? Date()
+            let phase = phaseForDate(date)
+            
+            if dayOffset > 0 {
+                let previousDate = Calendar.current.date(byAdding: .day, value: dayOffset - 1, to: Date()) ?? Date()
+                let previousPhase = phaseForDate(previousDate)
+                
+                if phase == .ovulation && previousPhase != .ovulation {
+                    return (
+                        icon: "🥚",
+                        title: "Ovulation beginnt",
+                        subtitle: "Peak Performance Zeit!",
+                        daysText: "in \(dayOffset) Tag\(dayOffset == 1 ? "" : "en")",
+                        color: Color(hex: "#F4A623")
+                    )
+                }
+                
+                if phase == .follicular && previousPhase != .follicular {
+                    return (
+                        icon: "💪",
+                        title: "Power-Phase startet",
+                        subtitle: "Beste Zeit für schwere Gewichte",
+                        daysText: "in \(dayOffset) Tag\(dayOffset == 1 ? "" : "en")",
+                        color: Color(hex: "#1D9E75")
+                    )
+                }
+            }
+        }
+        
+        return nil
+    }
+
     // MARK: – Old Active Session Banner (behalten für Fallback)
     func activeSessionBanner(_ session: WorkoutSession) -> some View {
         VStack(spacing: 8) {
