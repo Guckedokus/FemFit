@@ -16,7 +16,8 @@ struct HomeView: View {
     @State private var newDayName     = ""
     @State private var selectedProgram: WorkoutProgram?
     @State private var showTemplates = false
-    @State private var showPhaseInfo = false  // NEU
+    @State private var showPhaseInfo = false
+    @State private var showPlanGenerator = false  // NEU: Plan-Generator
 
     var activeProgram: WorkoutProgram? { programs.first }
     
@@ -64,10 +65,18 @@ struct HomeView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button {
+                            showPlanGenerator = true
+                        } label: {
+                            Label("Plan-Generator (Empfohlen!)", systemImage: "wand.and.stars")
+                        }
+                        
+                        Button {
                             showTemplates = true
                         } label: {
                             Label("Template nutzen", systemImage: "sparkles")
                         }
+                        
+                        Divider()
                         
                         Button {
                             showAddProgram = true
@@ -95,6 +104,9 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showPhaseInfo) {
                 CyclePhaseInfoView()
+            }
+            .sheet(isPresented: $showPlanGenerator) {
+                PlanGeneratorView()
             }
         }
     }
@@ -496,9 +508,44 @@ struct HomeView: View {
                 .foregroundColor(Color(hex: "#A06080"))
                 .multilineTextAlignment(.center)
             
-            // Zwei Optionen
+            // Drei Optionen
             VStack(spacing: 12) {
-                // Template nutzen (Empfohlen!)
+                // Plan-Generator (NEU & EMPFOHLEN!)
+                Button {
+                    showPlanGenerator = true
+                } label: {
+                    HStack {
+                        Image(systemName: "wand.and.stars")
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Plan-Generator")
+                                .fontWeight(.bold)
+                            Text("Personalisiert & zyklus-optimiert")
+                                .font(.caption)
+                        }
+                        Spacer()
+                        Text("NEU!")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color(hex: "#1D9E75"))
+                            .foregroundColor(.white)
+                            .cornerRadius(8)
+                    }
+                    .foregroundColor(.white)
+                    .padding(16)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        LinearGradient(
+                            colors: [Color(hex: "#1D9E75"), Color(hex: "#1D9E75").opacity(0.8)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(14)
+                }
+                
+                // Template nutzen
                 Button {
                     showTemplates = true
                 } label: {
@@ -511,26 +558,16 @@ struct HomeView: View {
                                 .font(.caption)
                         }
                         Spacer()
-                        Text("Empfohlen!")
-                            .font(.caption2)
-                            .fontWeight(.bold)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color(hex: "#F4A623"))
-                            .foregroundColor(.white)
-                            .cornerRadius(8)
                     }
-                    .foregroundColor(.white)
+                    .foregroundColor(Color(hex: "#E84393"))
                     .padding(16)
                     .frame(maxWidth: .infinity)
-                    .background(
-                        LinearGradient(
-                            colors: [Color(hex: "#E84393"), Color(hex: "#E84393").opacity(0.8)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
+                    .background(Color.white)
                     .cornerRadius(14)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(Color(hex: "#E84393"), lineWidth: 2)
+                    )
                 }
                 
                 // Eigenes Programm

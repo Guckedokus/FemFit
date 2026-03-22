@@ -8,11 +8,100 @@ import SwiftData
 @Model final class WorkoutProgram {
     var name: String
     var createdAt: Date
+    var weeklyFrequency: Int = 3  // NEU: Wie oft pro Woche trainieren?
+    var scheduledDaysRaw: String? // NEU: JSON mit Wochenplan (z.B. "Mon:0,Wed:1,Fri:2")
+    
     @Relationship(deleteRule: .cascade, inverse: \WorkoutDay.program)
     var days: [WorkoutDay] = []
+    
     init(name: String) { self.name = name; self.createdAt = .now }
+    
     var sortedDays: [WorkoutDay] { days.sorted { $0.order < $1.order } }
     var completedWorkouts: Int { days.reduce(0) { $0 + $1.completedSessions } }
+    
+    // NEU: Geplante Tage der Woche
+    var scheduledDays: [Weekday: Int] {
+        get {
+            guard let raw = scheduledDaysRaw else { return [:] }
+            var result: [Weekday: Int] = [:]
+            let pairs = raw.split(separator: ",")
+            for pair in pairs {
+                let parts = pair.split(separator: ":")
+                if parts.count == 2,
+                   let weekday = Weekday(rawValue: String(parts[0])),
+                   let dayIndex = Int(parts[1]) {
+                    result[weekday] = dayIndex
+                }
+            }
+            return result
+        }
+        set {
+            scheduledDaysRaw = newValue.map { "\($0.key.rawValue):\($0.value)" }.joined(separator: ",")
+        }
+    }
+    
+    // NEU: Trainingstag für bestimmten Wochentag
+    func workoutDay(for weekday: Weekday) -> WorkoutDay? {
+        guard let dayIndex = scheduledDays[weekday] else { return nil }
+        return sortedDays[safe: dayIndex]
+    }
+}
+
+// NEU: Wochentag-Enum
+enum Weekday: String, Codable, CaseIterable {
+    case monday = "Mon"
+    case tuesday = "Tue"
+    case wednesday = "Wed"
+    case thursday = "Thu"
+    case friday = "Fri"
+    case saturday = "Sat"
+    case sunday = "Sun"
+    
+    var displayName: String {
+        switch self {
+        case .monday: return "Montag"
+        case .tuesday: return "Dienstag"
+        case .wednesday: return "Mittwoch"
+        case .thursday: return "Donnerstag"
+        case .friday: return "Freitag"
+        case .saturday: return "Samstag"
+        case .sunday: return "Sonntag"
+        }
+    }
+    
+    var shortName: String {
+        switch self {
+        case .monday: return "Mo"
+        case .tuesday: return "Di"
+        case .wednesday: return "Mi"
+        case .thursday: return "Do"
+        case .friday: return "Fr"
+        case .saturday: return "Sa"
+        case .sunday: return "So"
+        }
+    }
+    
+    static func from(date: Date) -> Weekday {
+        let weekday = Calendar.current.component(.weekday, from: date)
+        // Calendar.weekday: 1 = Sunday, 2 = Monday, etc.
+        switch weekday {
+        case 1: return .sunday
+        case 2: return .monday
+        case 3: return .tuesday
+        case 4: return .wednesday
+        case 5: return .thursday
+        case 6: return .friday
+        case 7: return .saturday
+        default: return .monday
+        }
+    }
+}
+
+// NEU: Array Extension für safe access
+extension Array {
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
+    }
 }
 
 // ── Trainingstag ───────────────────────────

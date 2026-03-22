@@ -130,9 +130,6 @@ struct CyclePhaseInfoView: View {
             
             // 4 Phasen-Segmente
             ForEach(Array(CyclePhase.allCases.enumerated()), id: \.offset) { index, phase in
-                let startAngle = Angle(degrees: Double(index) * 90 - 90)
-                let endAngle = Angle(degrees: Double(index + 1) * 90 - 90)
-                
                 Circle()
                     .trim(from: CGFloat(index) * 0.25, to: CGFloat(index + 1) * 0.25)
                     .stroke(

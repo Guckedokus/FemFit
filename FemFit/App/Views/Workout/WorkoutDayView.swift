@@ -337,74 +337,105 @@ struct WorkoutDayView: View {
     }
 
     // ───────────────────────────────────────────
-    // MARK: – Modus Toggle
+    // MARK: – Modus Toggle (NEU: 4 Phasen Dropdown)
     // ───────────────────────────────────────────
 
     var modeToggle: some View {
-        HStack(spacing: 0) {
-            // Voll-Power Button
-            Button {
-                withAnimation(.spring(response: 0.3)) {
-                    cycleManager.isInPeriod = false
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    // Icon nur wenn aktiv
-                    if !cycleManager.isInPeriod {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.caption)
+        Menu {
+            ForEach(CyclePhase.allCases, id: \.self) { phase in
+                Button {
+                    withAnimation(.spring(response: 0.3)) {
+                        // Setze Phase
+                        cycleManager.isInPeriod = (phase == .menstruation)
+                        // TODO: Hier könnten wir später einen manuellen Override speichern
                     }
-                    Text("💪")
-                    Text("Voll-Power")
-                        .fontWeight(cycleManager.isInPeriod ? .regular : .semibold)
-                }
-                .font(.subheadline)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(
-                    !cycleManager.isInPeriod
-                    ? Color(hex: "#1D9E75")
-                    : Color.clear
-                )
-                .foregroundColor(!cycleManager.isInPeriod ? .white : .secondary)
-            }
-            .disabled(hasActiveSession)  // ← Während Session nicht wechselbar!
-
-            // Angepasst Button
-            Button {
-                withAnimation(.spring(response: 0.3)) {
-                    cycleManager.isInPeriod = true
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    // Icon nur wenn aktiv
-                    if cycleManager.isInPeriod {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.caption)
+                } label: {
+                    HStack {
+                        Text(phase.emoji)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(phase.rawValue)
+                                .fontWeight(.semibold)
+                            Text("\(Int(phase.weightMultiplier * 100))% Gewichte")
+                                .font(.caption2)
+                        }
+                        Spacer()
+                        if cycleManager.currentPhase == phase {
+                            Image(systemName: "checkmark")
+                        }
                     }
-                    Text("🌸")
-                    Text("Angepasst")
-                        .fontWeight(cycleManager.isInPeriod ? .semibold : .regular)
                 }
-                .font(.subheadline)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(
-                    cycleManager.isInPeriod
-                    ? Color(hex: "#E84393")
-                    : Color.clear
-                )
-                .foregroundColor(cycleManager.isInPeriod ? .white : .secondary)
             }
-            .disabled(hasActiveSession)  // ← Während Session nicht wechselbar!
+            
+            Divider()
+            
+            // Info über automatische Erkennung
+            Button {
+                // Info anzeigen
+            } label: {
+                Label("Automatisch: Tag \(cycleManager.currentCycleDay)", systemImage: "info.circle")
+            }
+            .disabled(true)
+            
+        } label: {
+            HStack(spacing: 12) {
+                // Aktueller Phasen-Indikator
+                ZStack {
+                    Circle()
+                        .fill(cycleManager.currentPhase.color.opacity(0.15))
+                        .frame(width: 40, height: 40)
+                    Text(cycleManager.currentPhase.emoji)
+                        .font(.title3)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(cycleManager.currentPhase.rawValue)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Image(systemName: "chevron.down.circle.fill")
+                            .font(.caption)
+                            .foregroundColor(cycleManager.currentPhase.color.opacity(0.7))
+                    }
+                    Text(cycleManager.currentPhase.shortDescription)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                // Gewichts-Badge
+                VStack(spacing: 2) {
+                    Text("\(Int(cycleManager.currentPhase.weightMultiplier * 100))%")
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundColor(cycleManager.currentPhase.color)
+                    Text("Gewichte")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(cycleManager.currentPhase.color.opacity(0.15))
+                .cornerRadius(8)
+            }
+            .padding(14)
+            .background(
+                LinearGradient(
+                    colors: [
+                        cycleManager.currentPhase.color.opacity(0.15),
+                        cycleManager.currentPhase.color.opacity(0.05)
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .cornerRadius(14)
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(cycleManager.currentPhase.color.opacity(0.3), lineWidth: 2)
+            )
         }
-        .background(Color(uiColor: UIColor.systemGray6))
-        .cornerRadius(12)
-        .animation(.spring(response: 0.3), value: cycleManager.isInPeriod)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(accentColor.opacity(0.3), lineWidth: 2)
-        )
+        .disabled(hasActiveSession)  // ← Während Session nicht wechselbar!
         .opacity(hasActiveSession ? 0.6 : 1.0)  // ← Visuelles Feedback
     }
 
