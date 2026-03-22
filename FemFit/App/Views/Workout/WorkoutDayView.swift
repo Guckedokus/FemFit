@@ -5,6 +5,7 @@
 
 import SwiftUI
 import SwiftData
+import Combine
 
 struct WorkoutDayView: View {
 
@@ -20,9 +21,7 @@ struct WorkoutDayView: View {
     @State private var editSets = "3"
     @State private var editReps = "10"
     @State private var showFinishConfirmation = false
-    @State private var showStartPrompt = false
     @State private var showModeSelection = false
-    @State private var hasShownPrompt = false
 
     var accentColor: Color {
         cycleManager.isInPeriod ? Color(hex: "#E84393") : Color(hex: "#1D9E75")
@@ -115,33 +114,24 @@ struct WorkoutDayView: View {
                         .cornerRadius(12)
                 }
                 
-                // ── Training starten / beenden ──
-                if !day.sortedExercises.isEmpty {
-                    workoutControlButton
-                }
-
                 Spacer(minLength: 40)
             }
             .padding()
         }
         .navigationTitle(day.name)
         .navigationBarTitleDisplayMode(.large)
-        .onAppear {
-            // Zeige Prompt nur einmal beim Öffnen UND wenn kein aktives Training läuft
-            if !hasShownPrompt && !hasActiveSession {
-                showStartPrompt = true
-                hasShownPrompt = true
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if hasActiveSession {
+                    // Stop Button mit Timer
+                    stopWorkoutButton
+                } else {
+                    // Start Button
+                    startWorkoutButton
+                }
             }
         }
-        .alert("Neues Training starten?", isPresented: $showStartPrompt) {
-            Button("Ja, starten!", role: .none) {
-                // Zeige Modus-Auswahl
-                showModeSelection = true
-            }
-            Button("Nein, nur ansehen", role: .cancel) { }
-        } message: {
-            Text("Möchtest du jetzt ein neues Training für '\(day.name)' starten?")
-        }
+        // onAppear removed - user can manually tap "Start" button instead
         .alert("In welchem Modus trainieren?", isPresented: $showModeSelection) {
             Button("\(CyclePhase.follicular.emoji) \(CyclePhase.follicular.rawValue) (Power!)") {
                 cycleManager.isInPeriod = false
@@ -211,6 +201,53 @@ struct WorkoutDayView: View {
     }
 
     // ───────────────────────────────────────────
+    // MARK: – Toolbar Buttons (NEU!)
+    // ───────────────────────────────────────────
+    
+    var startWorkoutButton: some View {
+        Button {
+            showModeSelection = true
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "play.circle.fill")
+                    .font(.title3)
+                Text("Start")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Color(hex: "#1D9E75"))
+            .cornerRadius(20)
+        }
+    }
+    
+    var stopWorkoutButton: some View {
+        Button {
+            showFinishConfirmation = true
+        } label: {
+            HStack(spacing: 8) {
+                // Timer
+                if let session = day.activeSession {
+                    TimerView(session: session)
+                }
+                
+                Image(systemName: "stop.circle.fill")
+                    .font(.title3)
+                Text("Stopp")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Color(hex: "#E84393"))
+            .cornerRadius(20)
+        }
+    }
+    
+    // ───────────────────────────────────────────
     // MARK: – Session Status Banner
     // ───────────────────────────────────────────
     
@@ -243,47 +280,6 @@ struct WorkoutDayView: View {
         .padding(14)
         .background(accentColor.opacity(0.1))
         .cornerRadius(12)
-    }
-    
-    // ───────────────────────────────────────────
-    // MARK: – Workout Control Button
-    // ───────────────────────────────────────────
-    
-    var workoutControlButton: some View {
-        VStack(spacing: 8) {
-            Button {
-                if hasActiveSession {
-                    showFinishConfirmation = true
-                } else {
-                    // Zeige Modus-Auswahl vor dem Start
-                    showModeSelection = true
-                }
-            } label: {
-                HStack {
-                    Image(systemName: hasActiveSession ? "checkmark.circle.fill" : "play.circle.fill")
-                        .font(.title3)
-                    Text(hasActiveSession ? "Training beenden" : "Neues Training starten")
-                        .fontWeight(.semibold)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(16)
-                .background(hasActiveSession ? Color.green : accentColor)
-                .foregroundColor(.white)
-                .cornerRadius(14)
-            }
-            
-            // Info-Text
-            if !hasActiveSession {
-                let todaySessions = day.sessions.filter { 
-                    Calendar.current.isDateInToday($0.startTime) 
-                }
-                if !todaySessions.isEmpty {
-                    Text("Heute schon \(todaySessions.count) Training(s) absolviert")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
     }
     
     // ───────────────────────────────────────────
@@ -331,9 +327,6 @@ struct WorkoutDayView: View {
         
         // Sheet schließen
         showFinishConfirmation = false
-        
-        // Prompt-Flag zurücksetzen, damit beim nächsten Öffnen wieder gefragt wird
-        hasShownPrompt = false
     }
 
     // ───────────────────────────────────────────
@@ -563,3 +556,45 @@ struct ExerciseRow: View {
         .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
     }
 }
+
+// ───────────────────────────────────────────
+// MARK: – Timer View (NEU!)
+// ───────────────────────────────────────────
+
+struct TimerView: View {
+    let session: WorkoutSession
+    @State private var currentTime = Date()
+    
+    let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    
+    var elapsedTime: TimeInterval {
+        currentTime.timeIntervalSince(session.startTime)
+    }
+    
+    var formattedTime: String {
+        let totalSeconds = Int(elapsedTime)
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        let seconds = totalSeconds % 60
+        
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            return String(format: "%d:%02d", minutes, seconds)
+        }
+    }
+    
+    var body: some View {
+        Text(formattedTime)
+            .font(.system(size: 14, weight: .bold, design: .monospaced))
+            .foregroundColor(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.black.opacity(0.2))
+            .cornerRadius(6)
+            .onReceive(timer) { _ in
+                currentTime = Date()
+            }
+    }
+}
+

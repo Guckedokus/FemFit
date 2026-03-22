@@ -46,6 +46,8 @@ struct ProgramTemplate: Identifiable {
     let days: [WorkoutDayTemplate]
     let icon: String
     let color: String // Hex
+    let weeklyFrequency: Int // NEU: Wie oft pro Woche (für SwiftData)
+    let scheduledDays: [Weekday] // NEU: Empfohlene Wochentage
     
     enum Difficulty: String {
         case beginner = "Anfänger"
@@ -71,13 +73,14 @@ struct WorkoutTemplates {
             WorkoutDayTemplate(
                 name: "Push (Brust, Schultern, Trizeps)",
                 exercises: [
-                    ExerciseTemplate(name: "Bankdrücken", targetSets: 4, targetReps: 8, category: .chest),
-                    ExerciseTemplate(name: "Schrägbankdrücken", targetSets: 3, targetReps: 10, category: .chest),
-                    ExerciseTemplate(name: "Fliegende", targetSets: 3, targetReps: 12, category: .chest),
-                    ExerciseTemplate(name: "Schulterdrücken", targetSets: 4, targetReps: 8, category: .shoulders),
-                    ExerciseTemplate(name: "Seitheben", targetSets: 3, targetReps: 12, category: .shoulders),
-                    ExerciseTemplate(name: "Trizeps Pushdowns", targetSets: 3, targetReps: 12, category: .arms),
-                    ExerciseTemplate(name: "Dips", targetSets: 3, targetReps: 10, category: .arms),
+                    ExerciseTemplate(name: "Bankdrücken Langhantel Flachbank", targetSets: 4, targetReps: 8, category: .chest),
+                    ExerciseTemplate(name: "Schrägbankdrücken Langhantel Schrägbank", targetSets: 3, targetReps: 10, category: .chest),
+                    ExerciseTemplate(name: "Butterfly mit Kurzhantel auf der Flachbank", targetSets: 3, targetReps: 12, category: .chest),
+                    ExerciseTemplate(name: "Schulterdrücken Maschine", targetSets: 4, targetReps: 8, category: .shoulders),
+                    ExerciseTemplate(name: "Seitenheben stehend mit Kurzhanteln", targetSets: 3, targetReps: 12, category: .shoulders),
+                    ExerciseTemplate(name: "Frontheben mit Kurzhanteln", targetSets: 3, targetReps: 12, category: .shoulders),
+                    ExerciseTemplate(name: "Trizepsdrücken am Kabelzug (Push Downs)", targetSets: 3, targetReps: 12, category: .arms),
+                    ExerciseTemplate(name: "Trizeps Dips an der Bank", targetSets: 3, targetReps: 10, category: .arms),
                 ]
             ),
             // PULL DAY
@@ -85,29 +88,32 @@ struct WorkoutTemplates {
                 name: "Pull (Rücken, Bizeps)",
                 exercises: [
                     ExerciseTemplate(name: "Kreuzheben", targetSets: 4, targetReps: 6, category: .back),
-                    ExerciseTemplate(name: "Klimmzüge", targetSets: 4, targetReps: 8, category: .back),
-                    ExerciseTemplate(name: "Rudern", targetSets: 4, targetReps: 10, category: .back),
-                    ExerciseTemplate(name: "Latzug", targetSets: 3, targetReps: 12, category: .back),
-                    ExerciseTemplate(name: "Bizeps Curls", targetSets: 3, targetReps: 12, category: .arms),
-                    ExerciseTemplate(name: "Hammer Curls", targetSets: 3, targetReps: 12, category: .arms),
+                    ExerciseTemplate(name: "Klimmzüge mit breitem Obergriff", targetSets: 4, targetReps: 8, category: .back),
+                    ExerciseTemplate(name: "Kurzhantelrudern einarmig", targetSets: 4, targetReps: 10, category: .back),
+                    ExerciseTemplate(name: "Latziehen am Kabelzug mit breitem Griff", targetSets: 3, targetReps: 12, category: .back),
+                    ExerciseTemplate(name: "Bizepscurls stehend mit Kurzhanteln", targetSets: 3, targetReps: 12, category: .arms),
+                    ExerciseTemplate(name: "Hammer Curls stehend beidarmig", targetSets: 3, targetReps: 12, category: .arms),
                 ]
             ),
             // LEG DAY
             WorkoutDayTemplate(
                 name: "Legs (Beine, Waden, Bauch)",
                 exercises: [
-                    ExerciseTemplate(name: "Kniebeugen", targetSets: 4, targetReps: 8, category: .legs),
+                    ExerciseTemplate(name: "Kniebeugen mit Langhantel", targetSets: 4, targetReps: 8, category: .legs),
                     ExerciseTemplate(name: "Beinpresse", targetSets: 3, targetReps: 12, category: .legs),
-                    ExerciseTemplate(name: "Beinstrecker", targetSets: 3, targetReps: 15, category: .legs),
-                    ExerciseTemplate(name: "Beinbeuger", targetSets: 3, targetReps: 15, category: .legs),
+                    ExerciseTemplate(name: "Beinstrecker Maschine", targetSets: 3, targetReps: 15, category: .legs),
+                    ExerciseTemplate(name: "Beinbeuger liegend Maschine", targetSets: 3, targetReps: 15, category: .legs),
+                    ExerciseTemplate(name: "Bulgarian Split Squat", targetSets: 3, targetReps: 12, category: .legs),
                     ExerciseTemplate(name: "Wadenheben", targetSets: 4, targetReps: 15, category: .legs),
-                    ExerciseTemplate(name: "Plank", targetSets: 3, targetReps: 60, category: .core),
-                    ExerciseTemplate(name: "Crunches", targetSets: 3, targetReps: 20, category: .core),
+                    ExerciseTemplate(name: "Planke", targetSets: 3, targetReps: 60, category: .core),
+                    ExerciseTemplate(name: "Crunches auf dem Boden", targetSets: 3, targetReps: 20, category: .core),
                 ]
             ),
         ],
         icon: "figure.strengthtraining.traditional",
-        color: "#1D9E75"
+        color: "#1D9E75",
+        weeklyFrequency: 3,
+        scheduledDays: [.monday, .wednesday, .friday] // Push/Pull/Legs rotation
     )
     
     // MARK: – Upper/Lower Split
@@ -121,29 +127,31 @@ struct WorkoutTemplates {
             WorkoutDayTemplate(
                 name: "Upper (Oberkörper)",
                 exercises: [
-                    ExerciseTemplate(name: "Bankdrücken", targetSets: 4, targetReps: 8, category: .chest),
-                    ExerciseTemplate(name: "Rudern", targetSets: 4, targetReps: 10, category: .back),
-                    ExerciseTemplate(name: "Schulterdrücken", targetSets: 3, targetReps: 10, category: .shoulders),
-                    ExerciseTemplate(name: "Latzug", targetSets: 3, targetReps: 12, category: .back),
-                    ExerciseTemplate(name: "Bizeps Curls", targetSets: 3, targetReps: 12, category: .arms),
-                    ExerciseTemplate(name: "Trizeps Pushdowns", targetSets: 3, targetReps: 12, category: .arms),
+                    ExerciseTemplate(name: "Bankdrücken Langhantel Flachbank", targetSets: 4, targetReps: 8, category: .chest),
+                    ExerciseTemplate(name: "Kurzhantelrudern einarmig", targetSets: 4, targetReps: 10, category: .back),
+                    ExerciseTemplate(name: "Militärpresse stehend", targetSets: 3, targetReps: 10, category: .shoulders),
+                    ExerciseTemplate(name: "Latziehen am Kabelzug mit breitem Griff", targetSets: 3, targetReps: 12, category: .back),
+                    ExerciseTemplate(name: "Bizepscurls stehend mit Kurzhanteln", targetSets: 3, targetReps: 12, category: .arms),
+                    ExerciseTemplate(name: "Trizepsdrücken am Kabelzug (Push Downs)", targetSets: 3, targetReps: 12, category: .arms),
                 ]
             ),
             // LOWER DAY
             WorkoutDayTemplate(
                 name: "Lower (Unterkörper)",
                 exercises: [
-                    ExerciseTemplate(name: "Kniebeugen", targetSets: 4, targetReps: 8, category: .legs),
-                    ExerciseTemplate(name: "Kreuzheben", targetSets: 3, targetReps: 8, category: .legs),
+                    ExerciseTemplate(name: "Kniebeugen mit Langhantel", targetSets: 4, targetReps: 8, category: .legs),
+                    ExerciseTemplate(name: "Rumänisches Kreuzheben", targetSets: 3, targetReps: 8, category: .legs),
                     ExerciseTemplate(name: "Beinpresse", targetSets: 3, targetReps: 12, category: .legs),
-                    ExerciseTemplate(name: "Beinbeuger", targetSets: 3, targetReps: 15, category: .legs),
-                    ExerciseTemplate(name: "Wadenheben", targetSets: 4, targetReps: 15, category: .legs),
-                    ExerciseTemplate(name: "Plank", targetSets: 3, targetReps: 60, category: .core),
+                    ExerciseTemplate(name: "Beinbeuger liegend Maschine", targetSets: 3, targetReps: 15, category: .legs),
+                    ExerciseTemplate(name: "Wadenheben stehend mit Langhantel", targetSets: 4, targetReps: 15, category: .legs),
+                    ExerciseTemplate(name: "Planke", targetSets: 3, targetReps: 60, category: .core),
                 ]
             ),
         ],
         icon: "figure.run",
-        color: "#4A90D9"
+        color: "#4A90D9",
+        weeklyFrequency: 4,
+        scheduledDays: [.monday, .tuesday, .thursday, .friday] // Upper/Lower rotation
     )
     
     // MARK: – Full Body
@@ -156,27 +164,29 @@ struct WorkoutTemplates {
             WorkoutDayTemplate(
                 name: "Full Body A",
                 exercises: [
-                    ExerciseTemplate(name: "Kniebeugen", targetSets: 3, targetReps: 10, category: .legs),
-                    ExerciseTemplate(name: "Bankdrücken", targetSets: 3, targetReps: 10, category: .chest),
-                    ExerciseTemplate(name: "Rudern", targetSets: 3, targetReps: 12, category: .back),
-                    ExerciseTemplate(name: "Schulterdrücken", targetSets: 3, targetReps: 10, category: .shoulders),
-                    ExerciseTemplate(name: "Plank", targetSets: 3, targetReps: 45, category: .core),
+                    ExerciseTemplate(name: "Kniebeugen mit Langhantel", targetSets: 3, targetReps: 10, category: .legs),
+                    ExerciseTemplate(name: "Bankdrücken Langhantel Flachbank", targetSets: 3, targetReps: 10, category: .chest),
+                    ExerciseTemplate(name: "Kurzhantelrudern einarmig", targetSets: 3, targetReps: 12, category: .back),
+                    ExerciseTemplate(name: "Schulterdrücken Maschine", targetSets: 3, targetReps: 10, category: .shoulders),
+                    ExerciseTemplate(name: "Planke", targetSets: 3, targetReps: 45, category: .core),
                 ]
             ),
             WorkoutDayTemplate(
                 name: "Full Body B",
                 exercises: [
                     ExerciseTemplate(name: "Kreuzheben", targetSets: 3, targetReps: 8, category: .legs),
-                    ExerciseTemplate(name: "Schrägbankdrücken", targetSets: 3, targetReps: 10, category: .chest),
-                    ExerciseTemplate(name: "Latzug", targetSets: 3, targetReps: 12, category: .back),
-                    ExerciseTemplate(name: "Bizeps Curls", targetSets: 3, targetReps: 12, category: .arms),
-                    ExerciseTemplate(name: "Trizeps Pushdowns", targetSets: 3, targetReps: 12, category: .arms),
-                    ExerciseTemplate(name: "Crunches", targetSets: 3, targetReps: 20, category: .core),
+                    ExerciseTemplate(name: "Schrägbankdrücken Kurzhanteln (30 Grad)", targetSets: 3, targetReps: 10, category: .chest),
+                    ExerciseTemplate(name: "Latziehen am Kabelzug mit breitem Griff", targetSets: 3, targetReps: 12, category: .back),
+                    ExerciseTemplate(name: "Bizepscurls stehend mit Kurzhanteln", targetSets: 3, targetReps: 12, category: .arms),
+                    ExerciseTemplate(name: "Trizepsdrücken am Kabelzug (Push Downs)", targetSets: 3, targetReps: 12, category: .arms),
+                    ExerciseTemplate(name: "Crunches auf dem Boden", targetSets: 3, targetReps: 20, category: .core),
                 ]
             ),
         ],
         icon: "star.fill",
-        color: "#F4A623"
+        color: "#F4A623",
+        weeklyFrequency: 3,
+        scheduledDays: [.monday, .wednesday, .friday] // Full Body A/B rotation
     )
     
     // MARK: – Bro-Split
@@ -190,11 +200,11 @@ struct WorkoutTemplates {
             WorkoutDayTemplate(
                 name: "Chest Day (Brust)",
                 exercises: [
-                    ExerciseTemplate(name: "Bankdrücken", targetSets: 4, targetReps: 8, category: .chest),
-                    ExerciseTemplate(name: "Schrägbankdrücken", targetSets: 4, targetReps: 10, category: .chest),
-                    ExerciseTemplate(name: "Fliegende", targetSets: 3, targetReps: 12, category: .chest),
-                    ExerciseTemplate(name: "Dips", targetSets: 3, targetReps: 10, category: .chest),
-                    ExerciseTemplate(name: "Cable Crossover", targetSets: 3, targetReps: 15, category: .chest),
+                    ExerciseTemplate(name: "Bankdrücken Langhantel Flachbank", targetSets: 4, targetReps: 8, category: .chest),
+                    ExerciseTemplate(name: "Schrägbankdrücken Langhantel Schrägbank", targetSets: 4, targetReps: 10, category: .chest),
+                    ExerciseTemplate(name: "Butterfly mit Kurzhantel auf der Flachbank", targetSets: 3, targetReps: 12, category: .chest),
+                    ExerciseTemplate(name: "Brust Dips", targetSets: 3, targetReps: 10, category: .chest),
+                    ExerciseTemplate(name: "Kabelzug über Kreuz stehend", targetSets: 3, targetReps: 15, category: .chest),
                 ]
             ),
             // BACK DAY
@@ -202,49 +212,53 @@ struct WorkoutTemplates {
                 name: "Back Day (Rücken)",
                 exercises: [
                     ExerciseTemplate(name: "Kreuzheben", targetSets: 4, targetReps: 6, category: .back),
-                    ExerciseTemplate(name: "Klimmzüge", targetSets: 4, targetReps: 8, category: .back),
-                    ExerciseTemplate(name: "Rudern", targetSets: 4, targetReps: 10, category: .back),
-                    ExerciseTemplate(name: "Latzug", targetSets: 3, targetReps: 12, category: .back),
-                    ExerciseTemplate(name: "Shrugs", targetSets: 3, targetReps: 15, category: .back),
+                    ExerciseTemplate(name: "Klimmzüge mit breitem Obergriff", targetSets: 4, targetReps: 8, category: .back),
+                    ExerciseTemplate(name: "Kurzhantelrudern einarmig", targetSets: 4, targetReps: 10, category: .back),
+                    ExerciseTemplate(name: "Latziehen am Kabelzug mit breitem Griff", targetSets: 3, targetReps: 12, category: .back),
+                    ExerciseTemplate(name: "Vorgebeugtes Langhantelrudern breiter Obergriff", targetSets: 3, targetReps: 10, category: .back),
                 ]
             ),
             // SHOULDER DAY
             WorkoutDayTemplate(
                 name: "Shoulder Day (Schultern)",
                 exercises: [
-                    ExerciseTemplate(name: "Schulterdrücken", targetSets: 4, targetReps: 8, category: .shoulders),
-                    ExerciseTemplate(name: "Seitheben", targetSets: 4, targetReps: 12, category: .shoulders),
-                    ExerciseTemplate(name: "Frontheben", targetSets: 3, targetReps: 12, category: .shoulders),
-                    ExerciseTemplate(name: "Reverse Flys", targetSets: 3, targetReps: 15, category: .shoulders),
-                    ExerciseTemplate(name: "Face Pulls", targetSets: 3, targetReps: 15, category: .shoulders),
+                    ExerciseTemplate(name: "Militärpresse stehend", targetSets: 4, targetReps: 8, category: .shoulders),
+                    ExerciseTemplate(name: "Seitenheben stehend mit Kurzhanteln", targetSets: 4, targetReps: 12, category: .shoulders),
+                    ExerciseTemplate(name: "Frontheben mit Kurzhanteln", targetSets: 3, targetReps: 12, category: .shoulders),
+                    ExerciseTemplate(name: "Umgekehrte Fliegende mit Kurzhanteln auf der Schrägbank", targetSets: 3, targetReps: 15, category: .shoulders),
+                    ExerciseTemplate(name: "Face-Pulls am Seilzug stehend", targetSets: 3, targetReps: 15, category: .shoulders),
                 ]
             ),
             // ARM DAY
             WorkoutDayTemplate(
                 name: "Arm Day (Arme)",
                 exercises: [
-                    ExerciseTemplate(name: "Bizeps Curls", targetSets: 4, targetReps: 12, category: .arms),
-                    ExerciseTemplate(name: "Hammer Curls", targetSets: 3, targetReps: 12, category: .arms),
-                    ExerciseTemplate(name: "Trizeps Pushdowns", targetSets: 4, targetReps: 12, category: .arms),
-                    ExerciseTemplate(name: "Skull Crushers", targetSets: 3, targetReps: 12, category: .arms),
-                    ExerciseTemplate(name: "Concentration Curls", targetSets: 3, targetReps: 15, category: .arms),
+                    ExerciseTemplate(name: "Bizepscurls stehend mit Kurzhanteln", targetSets: 4, targetReps: 12, category: .arms),
+                    ExerciseTemplate(name: "Hammer Curls stehend beidarmig", targetSets: 3, targetReps: 12, category: .arms),
+                    ExerciseTemplate(name: "Scott Curls mit SZ-Stange - breiter Griff", targetSets: 3, targetReps: 12, category: .arms),
+                    ExerciseTemplate(name: "Trizepsdrücken am Kabelzug (Push Downs)", targetSets: 4, targetReps: 12, category: .arms),
+                    ExerciseTemplate(name: "Trizeps Extension mit SZ-Stange liegend", targetSets: 3, targetReps: 12, category: .arms),
+                    ExerciseTemplate(name: "Trizeps Kickbacks", targetSets: 3, targetReps: 15, category: .arms),
                 ]
             ),
             // LEG DAY
             WorkoutDayTemplate(
                 name: "Leg Day (Beine)",
                 exercises: [
-                    ExerciseTemplate(name: "Kniebeugen", targetSets: 4, targetReps: 8, category: .legs),
+                    ExerciseTemplate(name: "Kniebeugen mit Langhantel", targetSets: 4, targetReps: 8, category: .legs),
                     ExerciseTemplate(name: "Beinpresse", targetSets: 4, targetReps: 12, category: .legs),
-                    ExerciseTemplate(name: "Beinstrecker", targetSets: 3, targetReps: 15, category: .legs),
-                    ExerciseTemplate(name: "Beinbeuger", targetSets: 3, targetReps: 15, category: .legs),
+                    ExerciseTemplate(name: "Beinstrecker Maschine", targetSets: 3, targetReps: 15, category: .legs),
+                    ExerciseTemplate(name: "Beinbeuger liegend Maschine", targetSets: 3, targetReps: 15, category: .legs),
+                    ExerciseTemplate(name: "Bulgarian Split Squat", targetSets: 3, targetReps: 12, category: .legs),
                     ExerciseTemplate(name: "Wadenheben", targetSets: 4, targetReps: 20, category: .legs),
-                    ExerciseTemplate(name: "Plank", targetSets: 3, targetReps: 60, category: .core),
+                    ExerciseTemplate(name: "Planke", targetSets: 3, targetReps: 60, category: .core),
                 ]
             ),
         ],
         icon: "flame.fill",
-        color: "#E84393"
+        color: "#E84393",
+        weeklyFrequency: 5,
+        scheduledDays: [.monday, .tuesday, .wednesday, .thursday, .friday] // Bro-split: 5 days
     )
     
     // MARK: – Alle Templates
