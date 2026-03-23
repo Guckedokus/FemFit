@@ -95,6 +95,19 @@ struct SettingsView: View {
                 } footer: {
                     Text("Löscht alle gespeicherten Trainings und Gewichte. Zyklus-Einstellungen bleiben erhalten.")
                 }
+                
+                // ── Entwickler (NEU!) ──
+                Section {
+                    Button {
+                        resetToOnboarding()
+                    } label: {
+                        Label("App zurücksetzen (Onboarding)", systemImage: "arrow.counterclockwise")
+                    }
+                } header: {
+                    Text("Entwickler")
+                } footer: {
+                    Text("Setzt die App zurück und zeigt das Onboarding erneut. Daten bleiben erhalten.")
+                }
             }
             .navigationTitle("Einstellungen")
             .alert("Alle Daten löschen?", isPresented: $showDeleteAlert) {
@@ -111,5 +124,9 @@ struct SettingsView: View {
         try? context.delete(model: Exercise.self)
         try? context.delete(model: WorkoutDay.self)
         try? context.delete(model: WorkoutProgram.self)
+    }
+    
+    func resetToOnboarding() {
+        UserDefaults.standard.set(false, forKey: "onboardingDone")
     }
 }

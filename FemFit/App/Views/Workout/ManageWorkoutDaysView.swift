@@ -206,12 +206,18 @@ struct ManageWorkoutDayRow: View {
     let onDelete: () -> Void
     
     @State private var showDeleteConfirmation = false
+    @State private var navigateToDay = false
     
     var accentColor: Color {
         cycleManager.isInPeriod ? Color(hex: "#E84393") : Color(hex: "#1D9E75")
     }
     
     var body: some View {
+        NavigationLink(destination: WorkoutDayView(day: day), isActive: $navigateToDay) {
+            EmptyView()
+        }
+        .hidden()
+        
         HStack(spacing: 14) {
             
             // Icon
@@ -252,7 +258,7 @@ struct ManageWorkoutDayRow: View {
                 }
                 
                 Button {
-                    // Navigiere zu diesem Tag
+                    navigateToDay = true
                 } label: {
                     Label("Öffnen", systemImage: "arrow.right.circle")
                 }
@@ -302,8 +308,10 @@ struct EditWorkoutDaySheet: View {
     var cycleManager = CycleManager.shared
     @Bindable var day: WorkoutDay
     @Binding var isPresented: Bool
+    @Environment(\.modelContext) private var context
     
     @State private var editName: String = ""
+    @State private var showDeleteConfirmation = false
     
     var accentColor: Color {
         cycleManager.isInPeriod ? Color(hex: "#E84393") : Color(hex: "#1D9E75")
@@ -332,14 +340,38 @@ struct EditWorkoutDaySheet: View {
                 }
                 
                 Section {
-                    NavigationLink(destination: WorkoutDayView(day: day)) {
+                    Button {
+                        // Speichere zuerst den Namen
+                        if !editName.trimmingCharacters(in: .whitespaces).isEmpty {
+                            day.name = editName
+                        }
+                        // Schließe die Sheet - Navigation erfolgt durch den ManageWorkoutDayRow
+                        isPresented = false
+                    } label: {
                         HStack {
-                            Image(systemName: "arrow.right.circle.fill")
+                            Image(systemName: "dumbbell.fill")
                                 .foregroundColor(accentColor)
-                            Text("Zum Trainingstag")
+                            Text("Übungen verwalten")
                                 .fontWeight(.semibold)
+                            Spacer()
+                            Image(systemName: "arrow.right")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
                     }
+                }
+                
+                Section {
+                    Button(role: .destructive) {
+                        showDeleteConfirmation = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "trash.fill")
+                            Text("Trainingstag löschen")
+                        }
+                    }
+                } footer: {
+                    Text("Löscht den Trainingstag mit allen Übungen und Sessions permanent.")
                 }
             }
             .navigationTitle("Tag bearbeiten")
@@ -351,16 +383,26 @@ struct EditWorkoutDaySheet: View {
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Speichern") {
-                        day.name = editName
+                    Button("Fertig") {
+                        if !editName.trimmingCharacters(in: .whitespaces).isEmpty {
+                            day.name = editName
+                        }
                         isPresented = false
                     }
                     .fontWeight(.semibold)
-                    .disabled(editName.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
             .onAppear {
                 editName = day.name
+            }
+            .alert("Tag löschen?", isPresented: $showDeleteConfirmation) {
+                Button("Löschen", role: .destructive) {
+                    context.delete(day)
+                    isPresented = false
+                }
+                Button("Abbrechen", role: .cancel) { }
+            } message: {
+                Text("'\(day.name)' wird permanent gelöscht. Alle Übungen und Sessions gehen verloren.")
             }
         }
         .presentationDetents([.medium, .large])

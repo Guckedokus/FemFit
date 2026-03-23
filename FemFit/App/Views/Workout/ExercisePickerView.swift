@@ -15,9 +15,21 @@ struct ExercisePickerView: View {
     @State private var searchText       = ""
     @State private var selectedGroup: MuscleGroup? = nil
     @State private var selectedExercises: Set<UUID> = []
+    @FocusState private var isSearchFocused: Bool  // NEU: Für Keyboard-Kontrolle
 
+    // Live-Filter: Aktualisiert sich automatisch bei jedem Tastendruck
     var filtered: [LibraryExercise] {
         ExerciseLibrary.search(searchText, group: selectedGroup)
+    }
+    
+    // Zeigt an, ob aktiv gefiltert wird
+    var isFiltering: Bool {
+        !searchText.isEmpty || selectedGroup != nil
+    }
+    
+    // Anzahl der gefundenen Übungen
+    var resultCount: Int {
+        filtered.count
     }
 
     var body: some View {
@@ -25,14 +37,58 @@ struct ExercisePickerView: View {
             VStack(spacing: 0) {
 
                 // ── Suche ──
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
-                    TextField("Übung suchen...", text: $searchText)
+                VStack(spacing: 8) {
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.secondary)
+                        TextField("Übung suchen...", text: $searchText)
+                            .autocorrectionDisabled(true)  // Verhindert Auto-Korrektur
+                            .textInputAutocapitalization(.never)  // Keine Auto-Großschreibung
+                            .focused($isSearchFocused)  // Keyboard-Steuerung
+                            .submitLabel(.search)  // "Suchen" Button auf Keyboard
+                        
+                        // Clear Button wenn Text eingegeben
+                        if !searchText.isEmpty {
+                            Button {
+                                searchText = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    .padding(10)
+                    .background(Color(uiColor: UIColor.systemGray6))
+                    .cornerRadius(10)
+                    
+                    // Live-Feedback: Zeigt Anzahl der gefundenen Übungen
+                    if isFiltering {
+                        HStack(spacing: 6) {
+                            Image(systemName: resultCount > 0 ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                                .font(.caption)
+                                .foregroundColor(resultCount > 0 ? Color(hex: "#1D9E75") : .orange)
+                            Text(resultCount > 0 
+                                ? "\(resultCount) Übung\(resultCount == 1 ? "" : "en") gefunden" 
+                                : "Keine Übungen gefunden")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            
+                            // Schnell-Clear Button
+                            if !searchText.isEmpty || selectedGroup != nil {
+                                Button("Filter zurücksetzen") {
+                                    withAnimation {
+                                        searchText = ""
+                                        selectedGroup = nil
+                                    }
+                                }
+                                .font(.caption)
+                                .foregroundColor(Color(hex: "#E84393"))
+                            }
+                        }
+                        .padding(.horizontal, 2)
+                    }
                 }
-                .padding(10)
-                .background(Color(uiColor: UIColor.systemGray6))
-                .cornerRadius(10)
                 .padding(.horizontal)
                 .padding(.top, 8)
 
@@ -132,6 +188,47 @@ struct ExercisePickerView: View {
                     Button("Eigene") { addCustom() }
                         .foregroundColor(.secondary)
                 }
+                
+                // Keyboard Toolbar (NEU!)
+                ToolbarItemGroup(placement: .keyboard) {
+                    HStack {
+                        // Filter-Shortcuts
+                        if isSearchFocused {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(MuscleGroup.allCases.prefix(5), id: \.self) { group in
+                                        Button {
+                                            selectedGroup = selectedGroup == group ? nil : group
+                                        } label: {
+                                            Text("\(group.emoji) \(group.rawValue)")
+                                                .font(.caption)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 6)
+                                                .background(selectedGroup == group ? Color(hex: "#E84393") : Color(uiColor: .systemGray5))
+                                                .foregroundColor(selectedGroup == group ? .white : .primary)
+                                                .cornerRadius(8)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        // Fertig Button
+                        Button("Fertig") {
+                            isSearchFocused = false
+                        }
+                        .fontWeight(.semibold)
+                        .foregroundColor(Color(hex: "#E84393"))
+                    }
+                }
+            }
+            .onAppear {
+                // Auto-Focus auf Suchfeld beim Öffnen
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    isSearchFocused = true
+                }
             }
         }
     }
@@ -174,15 +271,27 @@ struct ExercisePickerView: View {
                     .cornerRadius(8)
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(exercise.name)
-                        .font(.subheadline)
-                        .fontWeight(isSelected ? .semibold : .regular)
-                        .foregroundColor(.primary)
-                        .multilineTextAlignment(.leading)
-                    Text(exercise.muscleGroup.rawValue)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    // Name mit Highlight für Suchbegriff
+                    if !searchText.isEmpty {
+                        highlightedText(exercise.name, highlight: searchText)
+                            .font(.subheadline)
+                            .fontWeight(isSelected ? .semibold : .regular)
+                    } else {
+                        Text(exercise.name)
+                            .font(.subheadline)
+                            .fontWeight(isSelected ? .semibold : .regular)
+                            .foregroundColor(.primary)
+                    }
+                    
+                    HStack(spacing: 6) {
+                        Text(exercise.muscleGroup.emoji)
+                            .font(.caption)
+                        Text(exercise.muscleGroup.rawValue)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
+                .multilineTextAlignment(.leading)
 
                 Spacer()
 
@@ -191,13 +300,49 @@ struct ExercisePickerView: View {
                     .font(.title3)
                     .foregroundColor(isSelected ? Color(hex: "#E84393") : Color(uiColor: UIColor.systemGray4))
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, 6)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .listRowBackground(
             isSelected ? Color(hex: "#E84393").opacity(0.05) : Color.clear
         )
+    }
+    
+    // ───────────────────────────────────────────
+    // MARK: – Text Highlighting (NEU!)
+    // ───────────────────────────────────────────
+    
+    func highlightedText(_ text: String, highlight: String) -> some View {
+        let highlighted = highlightMatches(in: text, query: highlight)
+        return Text(highlighted)
+    }
+    
+    func highlightMatches(in text: String, query: String) -> AttributedString {
+        var attributedString = AttributedString(text)
+        
+        guard !query.isEmpty else { return attributedString }
+        
+        // Case-insensitive Suche
+        let lowerText = text.lowercased()
+        let lowerQuery = query.lowercased()
+        
+        var searchRange = lowerText.startIndex..<lowerText.endIndex
+        
+        while let range = lowerText.range(of: lowerQuery, range: searchRange) {
+            // Konvertiere zu AttributedString Range
+            let startIndex = attributedString.index(attributedString.startIndex, offsetByCharacters: lowerText.distance(from: lowerText.startIndex, to: range.lowerBound))
+            let endIndex = attributedString.index(startIndex, offsetByCharacters: lowerQuery.count)
+            
+            // Highlight Style
+            attributedString[startIndex..<endIndex].foregroundColor = Color(hex: "#E84393")
+            attributedString[startIndex..<endIndex].font = .system(.subheadline, weight: .bold)
+            
+            // Nächster Bereich
+            searchRange = range.upperBound..<lowerText.endIndex
+        }
+        
+        return attributedString
     }
 
     // ───────────────────────────────────────────

@@ -21,7 +21,7 @@ struct WorkoutDayView: View {
     @State private var editSets = "3"
     @State private var editReps = "10"
     @State private var showFinishConfirmation = false
-    @State private var showModeSelection = false
+    @State private var showPhaseDetectedBanner = false  // NEU: Für automatische Erkennung
 
     var accentColor: Color {
         cycleManager.isInPeriod ? Color(hex: "#E84393") : Color(hex: "#1D9E75")
@@ -36,87 +36,119 @@ struct WorkoutDayView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 14) {
+        ZStack {
+            ScrollView {
+                VStack(spacing: 14) {
 
-                // ── Session-Status Banner ──
-                if let session = day.activeSession {
-                    activeSessionBanner(session: session)
-                }
-
-                // ── Modus-Toggle ──
-                modeToggle
-                
-                // ── Info wenn Modus gesperrt ──
-                if hasActiveSession {
-                    HStack(spacing: 8) {
-                        Image(systemName: "lock.fill")
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                        Text("Modus während Training gesperrt")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                    // ── Session-Status Banner ──
+                    if let session = day.activeSession {
+                        activeSessionBanner(session: session)
                     }
-                    .padding(8)
-                    .frame(maxWidth: .infinity)
-                    .background(Color.orange.opacity(0.1))
-                    .cornerRadius(8)
-                }
 
-                // ── Info-Banner wenn Periode aktiv ──
-                if cycleManager.isInPeriod {
-                    periodInfoBanner
-                }
+                    // ── Modus-Toggle ──
+                    modeToggle
+                    
+                    // ── Automatische Phasen-Erkennung Info ──
+                    HStack(spacing: 8) {
+                        Image(systemName: "calendar.badge.checkmark")
+                            .font(.caption)
+                            .foregroundColor(cycleManager.currentPhase.color)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Automatisch erkannt")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                            Text("Tag \(cycleManager.currentCycleDay) • \(cycleManager.currentPhase.rawValue)")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                    }
+                    .padding(10)
+                    .background(cycleManager.currentPhase.color.opacity(0.1))
+                    .cornerRadius(10)
+                    
+                    // ── Info wenn Modus gesperrt ──
+                    if hasActiveSession {
+                        HStack(spacing: 8) {
+                            Image(systemName: "lock.fill")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                            Text("Modus während Training gesperrt")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(8)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(8)
+                    }
 
-                // ── Übungen ──
-                if day.sortedExercises.isEmpty {
-                    emptyExercises
-                } else {
-                    VStack(spacing: 10) {
-                        ForEach(day.sortedExercises) { exercise in
-                            NavigationLink(destination: ExerciseDetailView(exercise: exercise)) {
-                                ExerciseRow(exercise: exercise)
-                            }
-                            .buttonStyle(.plain)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    context.delete(exercise)
-                                } label: {
-                                    Label("Löschen", systemImage: "trash")
+                    // ── Info-Banner wenn Periode aktiv ──
+                    if cycleManager.isInPeriod {
+                        periodInfoBanner
+                    }
+
+                    // ── Übungen ──
+                    if day.sortedExercises.isEmpty {
+                        emptyExercises
+                    } else {
+                        VStack(spacing: 10) {
+                            ForEach(day.sortedExercises) { exercise in
+                                NavigationLink(destination: ExerciseDetailView(exercise: exercise)) {
+                                    ExerciseRow(exercise: exercise)
                                 }
-                            }
-                            .swipeActions(edge: .leading) {
-                                Button {
-                                    editingExercise = exercise
-                                    editName = exercise.name
-                                    editSets = "\(exercise.targetSets)"
-                                    editReps = "\(exercise.targetReps)"
-                                    showEditExercise = true
-                                } label: {
-                                    Label("Bearbeiten", systemImage: "pencil")
+                                .buttonStyle(.plain)
+                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                    Button(role: .destructive) {
+                                        context.delete(exercise)
+                                    } label: {
+                                        Label("Löschen", systemImage: "trash")
+                                    }
                                 }
-                                .tint(.blue)
+                                .swipeActions(edge: .leading) {
+                                    Button {
+                                        editingExercise = exercise
+                                        editName = exercise.name
+                                        editSets = "\(exercise.targetSets)"
+                                        editReps = "\(exercise.targetReps)"
+                                        showEditExercise = true
+                                    } label: {
+                                        Label("Bearbeiten", systemImage: "pencil")
+                                    }
+                                    .tint(.blue)
+                                }
                             }
                         }
                     }
-                }
 
-                // ── Übung hinzufügen ──
-                Button {
-                    showAddExercise = true
-                } label: {
-                    Label("Übung hinzufügen", systemImage: "plus.circle")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(12)
-                        .background(Color(uiColor: UIColor.systemGray6))
-                        .cornerRadius(12)
+                    // ── Übung hinzufügen ──
+                    Button {
+                        showAddExercise = true
+                    } label: {
+                        Label("Übung hinzufügen", systemImage: "plus.circle")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(12)
+                            .background(Color(uiColor: UIColor.systemGray6))
+                            .cornerRadius(12)
+                    }
+                    
+                    Spacer(minLength: 40)
                 }
-                
-                Spacer(minLength: 40)
+                .padding()
             }
-            .padding()
+            
+            // ── Toast Banner für automatische Phasen-Erkennung ──
+            if showPhaseDetectedBanner {
+                VStack {
+                    Spacer()
+                    phaseDetectedToast
+                        .padding(.horizontal)
+                        .padding(.bottom, 20)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
         }
         .navigationTitle(day.name)
         .navigationBarTitleDisplayMode(.large)
@@ -132,27 +164,6 @@ struct WorkoutDayView: View {
             }
         }
         // onAppear removed - user can manually tap "Start" button instead
-        .alert("In welchem Modus trainieren?", isPresented: $showModeSelection) {
-            Button("\(CyclePhase.follicular.emoji) \(CyclePhase.follicular.rawValue) (Power!)") {
-                cycleManager.isInPeriod = false
-                startWorkout(phase: .follicular)
-            }
-            Button("\(CyclePhase.menstruation.emoji) \(CyclePhase.menstruation.rawValue) (Schonend)") {
-                cycleManager.isInPeriod = true
-                startWorkout(phase: .menstruation)
-            }
-            Button("\(CyclePhase.ovulation.emoji) \(CyclePhase.ovulation.rawValue) (Peak)") {
-                cycleManager.isInPeriod = false
-                startWorkout(phase: .ovulation)
-            }
-            Button("\(CyclePhase.luteal.emoji) \(CyclePhase.luteal.rawValue) (Moderat)") {
-                cycleManager.isInPeriod = false
-                startWorkout(phase: .luteal)
-            }
-            Button("Abbrechen", role: .cancel) { }
-        } message: {
-            Text("Wähle deine aktuelle Zyklus-Phase.\n\nAktuell: \(cycleManager.currentPhase.emoji) \(cycleManager.currentPhase.rawValue) (Tag \(cycleManager.currentCycleDay))")
-        }
         .sheet(isPresented: $showAddExercise) {
             ExercisePickerView(day: day)
         }
@@ -206,7 +217,8 @@ struct WorkoutDayView: View {
     
     var startWorkoutButton: some View {
         Button {
-            showModeSelection = true
+            // Automatisch die aktuelle Phase aus dem Kalender verwenden
+            startWorkout(phase: cycleManager.currentPhase)
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "play.circle.fill")
@@ -290,6 +302,9 @@ struct WorkoutDayView: View {
         // Verwende übergebene Phase oder aktuelle Phase vom CycleManager
         let sessionPhase = phase ?? cycleManager.currentPhase
         
+        // Aktualisiere isInPeriod basierend auf der Phase
+        cycleManager.isInPeriod = (sessionPhase == .menstruation)
+        
         // Neue Session erstellen mit Phase-Info
         let session = WorkoutSession(
             workoutDay: day, 
@@ -301,12 +316,24 @@ struct WorkoutDayView: View {
         do {
             try context.save()
             print("✅ Neues Training gestartet in Phase: \(sessionPhase.emoji) \(sessionPhase.rawValue)")
+            print("📅 Automatisch erkannt: Tag \(cycleManager.currentCycleDay) des Zyklus")
             
             // Zähle heutige Sessions
             let todaySessions = day.sessions.filter { 
                 Calendar.current.isDateInToday($0.startTime) 
             }
             print("📊 Training #\(todaySessions.count) heute")
+            
+            // Zeige Toast-Banner für 3 Sekunden
+            withAnimation(.spring(response: 0.4)) {
+                showPhaseDetectedBanner = true
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                withAnimation {
+                    showPhaseDetectedBanner = false
+                }
+            }
         } catch {
             print("❌ Fehler beim Starten: \(error)")
         }
@@ -452,6 +479,58 @@ struct WorkoutDayView: View {
         .padding(12)
         .background(Color(hex: "#E84393").opacity(0.12))
         .cornerRadius(12)
+    }
+    
+    // ───────────────────────────────────────────
+    // MARK: – Toast Banner (NEU!)
+    // ───────────────────────────────────────────
+    
+    var phaseDetectedToast: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(cycleManager.currentPhase.color)
+                    .frame(width: 44, height: 44)
+                Text(cycleManager.currentPhase.emoji)
+                    .font(.title3)
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Training gestartet!")
+                    .font(.subheadline)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                HStack(spacing: 4) {
+                    Text(cycleManager.currentPhase.rawValue)
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.9))
+                    Text("•")
+                        .foregroundColor(.white.opacity(0.5))
+                    Text("\(Int(cycleManager.currentPhase.weightMultiplier * 100))% Gewichte")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.9))
+                }
+            }
+            
+            Spacer()
+            
+            Image(systemName: "checkmark.circle.fill")
+                .font(.title2)
+                .foregroundColor(.white)
+        }
+        .padding(16)
+        .background(
+            LinearGradient(
+                colors: [
+                    cycleManager.currentPhase.color,
+                    cycleManager.currentPhase.color.opacity(0.8)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
+        .cornerRadius(16)
+        .shadow(color: cycleManager.currentPhase.color.opacity(0.4), radius: 12, y: 6)
     }
 
     // ───────────────────────────────────────────

@@ -30,6 +30,10 @@ struct ProfileView: View {
                 VStack(spacing: 20) {
                     profileHeader
                     statsCards
+                    
+                    // NEU: Programme-Verwaltung
+                    managementSection
+                    
                     goalsSection
                     bodySection
                     Spacer(minLength: 40)
@@ -114,6 +118,41 @@ struct ProfileView: View {
         }
         .frame(maxWidth: .infinity).padding(14)
         .background(color.opacity(0.1)).cornerRadius(14)
+    }
+    
+    // ── Programme-Verwaltung (NEU!) ──
+    var managementSection: some View {
+        NavigationLink(destination: ProgramManagementView()) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: "#E84393").opacity(0.15))
+                        .frame(width: 48, height: 48)
+                    Image(systemName: "folder.badge.gearshape")
+                        .font(.title3)
+                        .foregroundColor(Color(hex: "#E84393"))
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Programme verwalten")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    Text("Bearbeite oder lösche deine Trainingspläne")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+            }
+            .padding(16)
+            .background(Color(uiColor: UIColor.systemBackground))
+            .cornerRadius(16)
+            .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
+        }
+        .buttonStyle(.plain)
     }
 
     // ── Ziel ──

@@ -115,7 +115,8 @@ struct DashboardView: View {
                 .font(.caption).fontWeight(.semibold)
                 .foregroundColor(.secondary)
 
-            if let nextDay = program.sortedDays.first(where: { $0.completionPercent < 1.0 }) ?? program.sortedDays.first {
+            // Intelligente Auswahl des nächsten Trainings
+            if let nextDay = determineNextWorkout(for: program) {
                 NavigationLink(destination: WorkoutDayView(day: nextDay)) {
                     HStack(spacing: 14) {
                         ZStack {
@@ -135,9 +136,25 @@ struct DashboardView: View {
                             Text(nextDay.name)
                                 .font(.headline)
                                 .foregroundColor(.primary)
-                            Text("\(nextDay.exercises.count) Übungen · \(cycleManager.isInPeriod ? "🌸 Perioden-Gewichte" : "💪 Normal-Gewichte")")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                            
+                            // Zeigt Phase + Anzahl Übungen
+                            HStack(spacing: 8) {
+                                Text("\(nextDay.exercises.count) Übungen")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                
+                                Text("•")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                
+                                HStack(spacing: 4) {
+                                    Text(cycleManager.currentPhase.emoji)
+                                        .font(.caption)
+                                    Text(cycleManager.currentPhase.shortDescription)
+                                        .font(.caption)
+                                        .foregroundColor(cycleManager.currentPhase.color)
+                                }
+                            }
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
@@ -149,8 +166,44 @@ struct DashboardView: View {
                     .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
                 }
                 .buttonStyle(.plain)
+            } else {
+                // Fallback: Keine Trainingstage
+                Text("Keine Trainingstage vorhanden")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .padding(14)
             }
         }
+    }
+    
+    // MARK: – Intelligente Trainingstag-Auswahl (NEU!)
+    func determineNextWorkout(for program: WorkoutProgram) -> WorkoutDay? {
+        let today = Weekday.from(date: Date())
+        
+        // 1. Prüfe ob heute ein geplanter Trainingstag ist
+        if let todayWorkout = program.workoutDay(for: today) {
+            return todayWorkout
+        }
+        
+        // 2. Finde nächsten geplanten Trainingstag in dieser Woche
+        let weekdays = Weekday.allCases
+        let todayIndex = weekdays.firstIndex(of: today) ?? 0
+        
+        for offset in 1...7 {
+            let nextIndex = (todayIndex + offset) % weekdays.count
+            let nextWeekday = weekdays[nextIndex]
+            if let workout = program.workoutDay(for: nextWeekday) {
+                return workout
+            }
+        }
+        
+        // 3. Fallback: Erstes unvollständiges Training
+        if let unfinished = program.sortedDays.first(where: { $0.completionPercent < 1.0 }) {
+            return unfinished
+        }
+        
+        // 4. Fallback: Erstes Training im Programm
+        return program.sortedDays.first
     }
 
     // MARK: – Stats

@@ -17,7 +17,6 @@ struct HomeView: View {
     @State private var selectedProgram: WorkoutProgram?
     @State private var showTemplates = false
     @State private var showPhaseInfo = false
-    @State private var showPlanGenerator = false  // NEU: Plan-Generator
     @State private var selectedCalendarDay: Int?
     @State private var showDayDetail = false
 
@@ -73,12 +72,6 @@ struct HomeView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button {
-                            showPlanGenerator = true
-                        } label: {
-                            Label("Plan-Generator (Empfohlen!)", systemImage: "wand.and.stars")
-                        }
-                        
-                        Button {
                             showTemplates = true
                         } label: {
                             Label("Template nutzen", systemImage: "sparkles")
@@ -112,9 +105,6 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showPhaseInfo) {
                 CyclePhaseInfoView()
-            }
-            .sheet(isPresented: $showPlanGenerator) {
-                PlanGeneratorView()
             }
             .sheet(isPresented: $showDayDetail) {
                 if let dayOffset = selectedCalendarDay {
@@ -695,22 +685,22 @@ struct HomeView: View {
                 .foregroundColor(Color(hex: "#A06080"))
                 .multilineTextAlignment(.center)
             
-            // Drei Optionen
+            // Zwei Optionen
             VStack(spacing: 12) {
-                // Plan-Generator (NEU & EMPFOHLEN!)
+                // Template nutzen (EMPFOHLEN!)
                 Button {
-                    showPlanGenerator = true
+                    showTemplates = true
                 } label: {
                     HStack {
-                        Image(systemName: "wand.and.stars")
+                        Image(systemName: "sparkles")
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Plan-Generator")
+                            Text("Template nutzen")
                                 .fontWeight(.bold)
-                            Text("Personalisiert & zyklus-optimiert")
+                            Text("Vorgefertigt & professionell")
                                 .font(.caption)
                         }
                         Spacer()
-                        Text("NEU!")
+                        Text("EMPFOHLEN")
                             .font(.caption2)
                             .fontWeight(.bold)
                             .padding(.horizontal, 8)
@@ -724,37 +714,12 @@ struct HomeView: View {
                     .frame(maxWidth: .infinity)
                     .background(
                         LinearGradient(
-                            colors: [Color(hex: "#1D9E75"), Color(hex: "#1D9E75").opacity(0.8)],
+                            colors: [Color(hex: "#E84393"), Color(hex: "#E84393").opacity(0.8)],
                             startPoint: .leading,
                             endPoint: .trailing
                         )
                     )
                     .cornerRadius(14)
-                }
-                
-                // Template nutzen
-                Button {
-                    showTemplates = true
-                } label: {
-                    HStack {
-                        Image(systemName: "sparkles")
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Template nutzen")
-                                .fontWeight(.bold)
-                            Text("Vorgefertigt & professionell")
-                                .font(.caption)
-                        }
-                        Spacer()
-                    }
-                    .foregroundColor(Color(hex: "#E84393"))
-                    .padding(16)
-                    .frame(maxWidth: .infinity)
-                    .background(Color.white)
-                    .cornerRadius(14)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(Color(hex: "#E84393"), lineWidth: 2)
-                    )
                 }
                 
                 // Eigenes Programm
