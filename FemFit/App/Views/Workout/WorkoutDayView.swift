@@ -22,6 +22,7 @@ struct WorkoutDayView: View {
     @State private var editReps = "10"
     @State private var showFinishConfirmation = false
     @State private var showPhaseDetectedBanner = false  // NEU: Für automatische Erkennung
+    @State private var isEditMode = false  // NEU: Edit-Modus Toggle
 
     var accentColor: Color {
         cycleManager.isInPeriod ? Color(hex: "#E84393") : Color(hex: "#1D9E75")
@@ -94,28 +95,43 @@ struct WorkoutDayView: View {
                     } else {
                         VStack(spacing: 10) {
                             ForEach(day.sortedExercises) { exercise in
-                                NavigationLink(destination: ExerciseDetailView(exercise: exercise)) {
-                                    ExerciseRow(exercise: exercise)
-                                }
-                                .buttonStyle(.plain)
-                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                    Button(role: .destructive) {
-                                        context.delete(exercise)
-                                    } label: {
-                                        Label("Löschen", systemImage: "trash")
+                                if isEditMode {
+                                    // Edit-Modus: Mit Löschen-Button
+                                    HStack(spacing: 12) {
+                                        // Löschen Button
+                                        Button {
+                                            withAnimation {
+                                                context.delete(exercise)
+                                            }
+                                        } label: {
+                                            Image(systemName: "minus.circle.fill")
+                                                .font(.title2)
+                                                .foregroundColor(.red)
+                                        }
+                                        
+                                        // Exercise Row
+                                        ExerciseRow(exercise: exercise)
+                                        
+                                        // Bearbeiten Button
+                                        Button {
+                                            editingExercise = exercise
+                                            editName = exercise.name
+                                            editSets = "\(exercise.targetSets)"
+                                            editReps = "\(exercise.targetReps)"
+                                            showEditExercise = true
+                                        } label: {
+                                            Image(systemName: "pencil.circle.fill")
+                                                .font(.title2)
+                                                .foregroundColor(accentColor)
+                                        }
                                     }
-                                }
-                                .swipeActions(edge: .leading) {
-                                    Button {
-                                        editingExercise = exercise
-                                        editName = exercise.name
-                                        editSets = "\(exercise.targetSets)"
-                                        editReps = "\(exercise.targetReps)"
-                                        showEditExercise = true
-                                    } label: {
-                                        Label("Bearbeiten", systemImage: "pencil")
+                                    .transition(.scale.combined(with: .opacity))
+                                } else {
+                                    // Normal-Modus: Navigierbar
+                                    NavigationLink(destination: ExerciseDetailView(exercise: exercise)) {
+                                        ExerciseRow(exercise: exercise)
                                     }
-                                    .tint(.blue)
+                                    .buttonStyle(.plain)
                                 }
                             }
                         }
@@ -153,6 +169,19 @@ struct WorkoutDayView: View {
         .navigationTitle(day.name)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
+            // Edit-Modus Button (links)
+            ToolbarItem(placement: .topBarLeading) {
+                if !day.sortedExercises.isEmpty {
+                    Button(isEditMode ? "Fertig" : "Bearbeiten") {
+                        withAnimation {
+                            isEditMode.toggle()
+                        }
+                    }
+                    .foregroundColor(accentColor)
+                }
+            }
+            
+            // Start/Stop Button (rechts)
             ToolbarItem(placement: .topBarTrailing) {
                 if hasActiveSession {
                     // Stop Button mit Timer

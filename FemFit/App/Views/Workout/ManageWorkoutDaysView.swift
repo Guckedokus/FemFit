@@ -13,9 +13,7 @@ struct ManageWorkoutDaysView: View {
     @Query(sort: \WorkoutProgram.createdAt) private var programs: [WorkoutProgram]
     
     @State private var showAddDay = false
-    @State private var showEditDay = false
     @State private var editingDay: WorkoutDay? = nil
-    @State private var editName = ""
     @State private var selectedProgram: WorkoutProgram? = nil
     @State private var newDayName = ""
     
@@ -87,10 +85,8 @@ struct ManageWorkoutDaysView: View {
         } message: {
             Text("Erstelle einen neuen Trainingstag für dein Programm.")
         }
-        .sheet(isPresented: $showEditDay) {
-            if let day = editingDay {
-                EditWorkoutDaySheet(day: day, isPresented: $showEditDay)
-            }
+        .sheet(item: $editingDay) { day in
+            EditWorkoutDaySheet(day: day)
         }
     }
     
@@ -122,8 +118,6 @@ struct ManageWorkoutDaysView: View {
                             day: day,
                             onEdit: {
                                 editingDay = day
-                                editName = day.name
-                                showEditDay = true
                             },
                             onDelete: {
                                 deleteDay(day)
@@ -213,11 +207,6 @@ struct ManageWorkoutDayRow: View {
     }
     
     var body: some View {
-        NavigationLink(destination: WorkoutDayView(day: day), isActive: $navigateToDay) {
-            EmptyView()
-        }
-        .hidden()
-        
         HStack(spacing: 14) {
             
             // Icon
@@ -290,6 +279,9 @@ struct ManageWorkoutDayRow: View {
                 .stroke(accentColor.opacity(0.2), lineWidth: 1.5)
         )
         .shadow(color: accentColor.opacity(0.08), radius: 6, y: 3)
+        .navigationDestination(isPresented: $navigateToDay) {
+            WorkoutDayView(day: day)
+        }
         .alert("Tag löschen?", isPresented: $showDeleteConfirmation) {
             Button("Löschen", role: .destructive) {
                 onDelete()
@@ -307,11 +299,16 @@ struct EditWorkoutDaySheet: View {
     
     var cycleManager = CycleManager.shared
     @Bindable var day: WorkoutDay
-    @Binding var isPresented: Bool
     @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
     
     @State private var editName: String = ""
     @State private var showDeleteConfirmation = false
+    @State private var showExerciseView = false
+    @State private var showAddExercise = false
+    @State private var newExerciseName = ""
+    @State private var newExerciseSets = 3
+    @State private var newExerciseReps = 10
     
     var accentColor: Color {
         cycleManager.isInPeriod ? Color(hex: "#E84393") : Color(hex: "#1D9E75")
@@ -341,24 +338,65 @@ struct EditWorkoutDaySheet: View {
                 
                 Section {
                     Button {
-                        // Speichere zuerst den Namen
-                        if !editName.trimmingCharacters(in: .whitespaces).isEmpty {
-                            day.name = editName
-                        }
-                        // Schließe die Sheet - Navigation erfolgt durch den ManageWorkoutDayRow
-                        isPresented = false
+                        showExerciseView = true
                     } label: {
                         HStack {
                             Image(systemName: "dumbbell.fill")
                                 .foregroundColor(accentColor)
                             Text("Übungen verwalten")
                                 .fontWeight(.semibold)
+                                .foregroundColor(.primary)
                             Spacer()
-                            Image(systemName: "arrow.right")
+                            Image(systemName: "chevron.right")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
                     }
+                } header: {
+                    Text("Training")
+                }
+                
+                Section {
+                    // Übungen Liste
+                    if day.sortedExercises.isEmpty {
+                        HStack {
+                            Image(systemName: "tray")
+                                .foregroundColor(.secondary)
+                            Text("Noch keine Übungen")
+                                .foregroundColor(.secondary)
+                        }
+                    } else {
+                        ForEach(day.sortedExercises) { exercise in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(exercise.name)
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    Text("Ziel: \(exercise.targetSets)×\(exercise.targetReps)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                            }
+                        }
+                        .onDelete(perform: deleteExercises)
+                    }
+                    
+                    // Hinzufügen Button
+                    Button {
+                        showAddExercise = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundColor(accentColor)
+                            Text("Übung hinzufügen")
+                                .foregroundColor(.primary)
+                        }
+                    }
+                } header: {
+                    Text("Übungen (\(day.exercises.count))")
+                } footer: {
+                    Text("Wische nach links, um eine Übung zu löschen.")
                 }
                 
                 Section {
@@ -376,10 +414,13 @@ struct EditWorkoutDaySheet: View {
             }
             .navigationTitle("Tag bearbeiten")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(isPresented: $showExerciseView) {
+                WorkoutDayView(day: day)
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Abbrechen") {
-                        isPresented = false
+                        dismiss()
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -387,7 +428,7 @@ struct EditWorkoutDaySheet: View {
                         if !editName.trimmingCharacters(in: .whitespaces).isEmpty {
                             day.name = editName
                         }
-                        isPresented = false
+                        dismiss()
                     }
                     .fontWeight(.semibold)
                 }
@@ -395,10 +436,21 @@ struct EditWorkoutDaySheet: View {
             .onAppear {
                 editName = day.name
             }
+            .alert("Neue Übung", isPresented: $showAddExercise) {
+                TextField("Übungsname", text: $newExerciseName)
+                Button("Hinzufügen") {
+                    addExercise()
+                }
+                Button("Abbrechen", role: .cancel) {
+                    newExerciseName = ""
+                }
+            } message: {
+                Text("Gib den Namen der neuen Übung ein.")
+            }
             .alert("Tag löschen?", isPresented: $showDeleteConfirmation) {
                 Button("Löschen", role: .destructive) {
                     context.delete(day)
-                    isPresented = false
+                    dismiss()
                 }
                 Button("Abbrechen", role: .cancel) { }
             } message: {
@@ -406,5 +458,32 @@ struct EditWorkoutDaySheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+    
+    // MARK: - Actions
+    
+    private func addExercise() {
+        guard !newExerciseName.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        
+        let exercise = Exercise(
+            name: newExerciseName,
+            order: day.exercises.count,
+            targetSets: newExerciseSets,
+            targetReps: newExerciseReps
+        )
+        exercise.day = day
+        context.insert(exercise)
+        
+        // Reset
+        newExerciseName = ""
+        newExerciseSets = 3
+        newExerciseReps = 10
+    }
+    
+    private func deleteExercises(at offsets: IndexSet) {
+        for index in offsets {
+            let exercise = day.sortedExercises[index]
+            context.delete(exercise)
+        }
     }
 }
