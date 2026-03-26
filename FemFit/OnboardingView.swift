@@ -3,18 +3,22 @@
 // Neu in Xcode: File > New > File > Swift File > "OnboardingView"
 
 import SwiftUI
+import SwiftData
 
 struct OnboardingView: View {
 
     @AppStorage("onboardingDone") var onboardingDone = false
     @AppStorage("userName")       var userName       = ""
 
+    @Environment(\.modelContext) private var context
     var cycleManager = CycleManager.shared
 
     @State private var currentPage  = 0
     @State private var nameInput    = ""
     @State private var selectedCycleLength  = 28
     @State private var selectedPeriodLength = 5
+    @State private var selectedTemplate: ProgramTemplate? = nil
+    @State private var skipTemplate = false
 
     let accentPink  = Color(hex: "#E84393")
     let accentGreen = Color(hex: "#1D9E75")
@@ -28,7 +32,7 @@ struct OnboardingView: View {
 
                 // Fortschritts-Punkte
                 HStack(spacing: 8) {
-                    ForEach(0..<4) { i in
+                    ForEach(0..<5) { i in
                         Capsule()
                             .fill(i == currentPage ? accentPink : Color.white.opacity(0.3))
                             .frame(width: i == currentPage ? 24 : 8, height: 8)
@@ -46,6 +50,7 @@ struct OnboardingView: View {
                     case 1: page2
                     case 2: page3
                     case 3: page4
+                    case 4: page5
                     default: page1
                     }
                 }
@@ -58,28 +63,42 @@ struct OnboardingView: View {
                 Spacer()
 
                 // Weiter-Button
-                Button {
-                    if currentPage < 3 {
-                        withAnimation(.spring(response: 0.4)) {
-                            currentPage += 1
+                VStack(spacing: 10) {
+                    Button {
+                        if currentPage < 4 {
+                            withAnimation(.spring(response: 0.4)) {
+                                currentPage += 1
+                            }
+                        } else {
+                            finishOnboarding()
                         }
-                    } else {
-                        finishOnboarding()
+                    } label: {
+                        Text(currentPage == 4 ? "Loslegen! 💪" : "Weiter")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(16)
+                            .background(
+                                currentPage == 4 ? accentPink : accentPink.opacity(0.8)
+                            )
+                            .cornerRadius(16)
                     }
-                } label: {
-                    Text(currentPage == 3 ? "Loslegen! 💪" : "Weiter")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(16)
-                        .background(
-                            currentPage == 3 ? accentPink : accentPink.opacity(0.8)
-                        )
-                        .cornerRadius(16)
+                    .disabled(currentPage == 1 && nameInput.trimmingCharacters(in: .whitespaces).isEmpty)
+                    
+                    // Auf Seite 5: "Ohne Template" Option
+                    if currentPage == 4 {
+                        Button {
+                            skipTemplate = true
+                            finishOnboarding()
+                        } label: {
+                            Text("Lieber selbst erstellen")
+                                .font(.subheadline)
+                                .foregroundColor(.white.opacity(0.5))
+                        }
+                    }
                 }
                 .padding(.horizontal, 28)
                 .padding(.bottom, 50)
-                .disabled(currentPage == 1 && nameInput.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
     }
@@ -253,6 +272,91 @@ struct OnboardingView: View {
         .padding(.horizontal, 28)
     }
 
+    // ── Seite 5: Template auswählen ──
+    var page5: some View {
+        VStack(spacing: 20) {
+            VStack(spacing: 8) {
+                Text("Dein erstes Programm")
+                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+                Text("Wähle einen fertigen Trainingsplan – du kannst ihn später jederzeit anpassen.")
+                    .font(.subheadline)
+                    .foregroundColor(.white.opacity(0.6))
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 8)
+
+            VStack(spacing: 10) {
+                ForEach(WorkoutTemplates.allTemplates) { template in
+                    templateCard(template)
+                }
+            }
+        }
+        .padding(.horizontal, 28)
+    }
+
+    func templateCard(_ template: ProgramTemplate) -> some View {
+        let isSelected = selectedTemplate?.id == template.id
+        let color = Color(hex: template.color)
+
+        return Button {
+            withAnimation(.spring(response: 0.3)) {
+                selectedTemplate = isSelected ? nil : template
+            }
+        } label: {
+            HStack(spacing: 14) {
+                // Icon
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(color.opacity(isSelected ? 0.4 : 0.2))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: template.icon)
+                        .font(.title3)
+                        .foregroundColor(color)
+                }
+
+                // Info
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(template.name)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                        Text(template.difficulty.rawValue)
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundColor(color)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(color.opacity(0.2))
+                            .cornerRadius(4)
+                    }
+                    Text("\(template.frequency)  •  \(template.days.count) Trainingstage")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.5))
+                }
+
+                Spacer()
+
+                // Auswahl-Checkmark
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundColor(isSelected ? color : .white.opacity(0.3))
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color.white.opacity(isSelected ? 0.12 : 0.06))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(isSelected ? color.opacity(0.7) : Color.clear, lineWidth: 1.5)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
     func summaryRow(icon: String, text: String, color: Color) -> some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
@@ -271,6 +375,11 @@ struct OnboardingView: View {
         cycleManager.cycleLength  = selectedCycleLength
         cycleManager.periodLength = selectedPeriodLength
         cycleManager.checkAndUpdateCycle()
+
+        // Ausgewähltes Template direkt erstellen
+        if !skipTemplate, let template = selectedTemplate {
+            WorkoutTemplates.createProgram(from: template, context: context)
+        }
 
         withAnimation(.easeInOut(duration: 0.4)) {
             onboardingDone = true

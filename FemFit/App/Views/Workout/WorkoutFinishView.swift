@@ -13,11 +13,17 @@ struct WorkoutFinishView: View {
     @Query private var allSessions: [WorkoutSession]
     @Query private var unlocked: [Achievement]
     
+    var cycleManager = CycleManager.shared
+    
     let session: WorkoutSession
     let day: WorkoutDay
     let onFinish: () -> Void
     
     @State private var newAchievements: [String] = []
+    
+    var currentStreak: Int {
+        cycleManager.calculateStreak(sessions: allSessions)
+    }
     
     var accentColor: Color {
         session.isDuringPeriod ? Color(hex: "#E84393") : Color(hex: "#1D9E75")
@@ -78,6 +84,15 @@ struct WorkoutFinishView: View {
                                 label: "Sätze insgesamt",
                                 value: "\(totalSets)",
                                 color: .orange
+                            )
+                        }
+                        
+                        if currentStreak > 0 {
+                            summaryRow(
+                                icon: "flame.fill",
+                                label: "Aktueller Streak",
+                                value: "\(currentStreak) \(currentStreak == 1 ? "Tag" : "Tage") 🔥",
+                                color: Color(hex: "#E84393")
                             )
                         }
                     }
@@ -214,9 +229,7 @@ struct WorkoutFinishView: View {
     func checkForNewAchievements() {
         let unlockedIDs = Set(unlocked.map { $0.id })
         let completedSessions = allSessions.filter { $0.endTime != nil }
-        
-        // Dummy streak für jetzt - könnte verbessert werden
-        let streak = 0
+        let streak = currentStreak
         
         for achievement in allAchievementDefinitions {
             if !unlockedIDs.contains(achievement.id) && 
@@ -255,10 +268,10 @@ struct WorkoutFinishView: View {
     }
     
     func calculateTotalSets() -> Int? {
-        let today = Calendar.current.startOfDay(for: .now)
-        let todaySets = day.sortedExercises.flatMap { exercise in
-            exercise.sets.filter { Calendar.current.startOfDay(for: $0.date) == today }
+        let cutoff = session.startTime
+        let sessionSets = day.sortedExercises.flatMap { exercise in
+            exercise.sets.filter { $0.date >= cutoff }
         }
-        return todaySets.isEmpty ? nil : todaySets.count
+        return sessionSets.isEmpty ? nil : sessionSets.count
     }
 }
