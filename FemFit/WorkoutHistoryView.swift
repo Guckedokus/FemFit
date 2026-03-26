@@ -39,6 +39,25 @@ struct WorkoutHistoryView: View {
         return totalWorkoutTime / Double(completedSessions.count)
     }
     
+    var totalVolume: Double {
+        completedSessions.reduce(0.0) { total, session in
+            guard let day = session.workoutDay else { return total }
+            let sessionDay = Calendar.current.startOfDay(for: session.startTime)
+            let vol = day.exercises.flatMap(\.sets).filter {
+                Calendar.current.startOfDay(for: $0.date) == sessionDay
+            }.reduce(0.0) { $0 + $1.weight * Double($1.reps) }
+            return total + vol
+        }
+    }
+    
+    func formatVolume(_ kg: Double) -> String {
+        if kg >= 1000 {
+            return String(format: "%.1ft", kg / 1000)
+        } else {
+            return String(format: "%.0fkg", kg)
+        }
+    }
+    
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
@@ -102,6 +121,26 @@ struct WorkoutHistoryView: View {
                     icon: "timer",
                     color: Color(hex: "#E84393")
                 )
+            }
+            
+            // Tonnage Stats
+            if totalVolume > 0 {
+                HStack(spacing: 12) {
+                    statCard(
+                        title: "Gesamt-Tonnage",
+                        value: formatVolume(totalVolume),
+                        subtitle: "bewegt",
+                        icon: "scalemass.fill",
+                        color: Color(hex: "#4A90D9")
+                    )
+                    statCard(
+                        title: "Ø Volumen",
+                        value: completedSessions.isEmpty ? "–" : formatVolume(totalVolume / Double(completedSessions.count)),
+                        subtitle: "pro Session",
+                        icon: "chart.bar.fill",
+                        color: Color(hex: "#7B68EE")
+                    )
+                }
             }
             
             // Periode-Stats
@@ -237,16 +276,27 @@ struct WorkoutHistoryView: View {
         }
     }
     
+    func sessionVolume(_ session: WorkoutSession) -> Double {
+        guard let day = session.workoutDay else { return 0 }
+        let sessionDay = Calendar.current.startOfDay(for: session.startTime)
+        return day.exercises.flatMap(\.sets).filter {
+            Calendar.current.startOfDay(for: $0.date) == sessionDay
+        }.reduce(0.0) { $0 + $1.weight * Double($1.reps) }
+    }
+    
     func sessionRow(_ session: WorkoutSession) -> some View {
-        HStack(spacing: 12) {
+        let volume = sessionVolume(session)
+        let accentColor = session.isDuringPeriod ? Color(hex: "#E84393") : Color(hex: "#1D9E75")
+        
+        return HStack(spacing: 12) {
             // Icon
             ZStack {
                 Circle()
-                    .fill(session.isDuringPeriod ? Color(hex: "#E84393").opacity(0.2) : Color(hex: "#1D9E75").opacity(0.2))
+                    .fill(accentColor.opacity(0.2))
                     .frame(width: 44, height: 44)
                 Image(systemName: session.isDuringPeriod ? "heart.fill" : "dumbbell.fill")
                     .font(.title3)
-                    .foregroundColor(session.isDuringPeriod ? Color(hex: "#E84393") : Color(hex: "#1D9E75"))
+                    .foregroundColor(accentColor)
             }
             
             VStack(alignment: .leading, spacing: 4) {
@@ -267,8 +317,17 @@ struct WorkoutHistoryView: View {
             
             Spacer()
             
+            // Volumen + Übungen
             VStack(alignment: .trailing, spacing: 4) {
-                if session.completedExerciseCount > 0 {
+                if volume > 0 {
+                    Text(formatVolume(volume))
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                        .foregroundColor(accentColor)
+                    Text("Volumen")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                } else if session.completedExerciseCount > 0 {
                     Text("\(session.completedExerciseCount)")
                         .font(.title3)
                         .fontWeight(.bold)

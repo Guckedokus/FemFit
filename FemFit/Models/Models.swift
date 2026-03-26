@@ -133,13 +133,17 @@ extension Array {
         }
     }
     
-    // Heutige abgeschlossene Übungen
-    var todayCompletedExercises: Int {
-        let today = Calendar.current.startOfDay(for: .now)
-        return exercises.filter { exercise in
-            let todaySets = exercise.sets.filter { Calendar.current.startOfDay(for: $0.date) == today }
-            return !todaySets.isEmpty
+    // Heutige abgeschlossene Übungen (optional: ab einem bestimmten Session-Zeitpunkt)
+    func completedExercises(since cutoff: Date) -> Int {
+        exercises.filter { exercise in
+            exercise.sets.contains { $0.date >= cutoff }
         }.count
+    }
+    
+    var todayCompletedExercises: Int {
+        // Verwendet den Start der aktiven Session als Cutoff, damit zweite Sessions sauber starten
+        let cutoff = activeSession?.startTime ?? Calendar.current.startOfDay(for: .now)
+        return completedExercises(since: cutoff)
     }
 }
 

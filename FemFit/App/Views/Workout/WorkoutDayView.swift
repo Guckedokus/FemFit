@@ -128,7 +128,8 @@ struct WorkoutDayView: View {
                                     .transition(.scale.combined(with: .opacity))
                                 } else {
                                     // Normal-Modus: Navigierbar
-                                    NavigationLink(destination: ExerciseDetailView(exercise: exercise)) {
+                                    // sessionStartTime weitergeben damit zweite Sessions sauber starten
+                                    NavigationLink(destination: ExerciseDetailView(exercise: exercise, sessionStartTime: day.activeSession?.startTime)) {
                                         ExerciseRow(exercise: exercise)
                                     }
                                     .buttonStyle(.plain)

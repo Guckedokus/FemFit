@@ -12,6 +12,8 @@ struct ExerciseDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     let exercise: Exercise
+    // Start-Zeitpunkt der aktuellen Session – nur Sätze AB diesem Zeitpunkt gelten als "heute"
+    var sessionStartTime: Date? = nil
 
     // Eingabe-Felder
     @State private var weightInput  = ""
@@ -23,9 +25,15 @@ struct ExerciseDetailView: View {
     @State private var showSkipConfirmation = false
     @State private var showFinishHint = false
     @State private var skipTarget: Exercise? = nil  // ← NEU: für programmatische Navigation nach Skip
+    @State private var showPRBanner = false          // PR-Banner
 
     var isInPeriod: Bool { cycleManager.isInPeriod }
     var accentColor: Color { isInPeriod ? Color(hex: "#E84393") : Color(hex: "#1D9E75") }
+    
+    // Aktueller PR: höchstes Gewicht aller Zeiten
+    var allTimePR: Double? {
+        exercise.sets.map(\.weight).max()
+    }
     
     // Navigation zu nächster/vorheriger Übung
     var nextExercise: Exercise? {
@@ -52,18 +60,21 @@ struct ExerciseDetailView: View {
         return min(1.0, Double(todaySets.count) / Double(exercise.targetSets))
     }
 
-    // Heutige Sätze (aktueller Modus)
-    var todaySets: [WorkoutSet] {
-        let today = Calendar.current.startOfDay(for: .now)
-        return (isInPeriod ? exercise.periodSets : exercise.normalSets)
-            .filter { Calendar.current.startOfDay(for: $0.date) == today }
+    // Schwellenwert: entweder Session-Start oder Tagesbeginn
+    var currentSessionCutoff: Date {
+        sessionStartTime ?? Calendar.current.startOfDay(for: .now)
     }
 
-    // Alle vergangenen Sätze (aktueller Modus) für Verlauf
-    var historySets: [WorkoutSet] {
-        let today = Calendar.current.startOfDay(for: .now)
+    // Heutige Sätze = nur Sätze AB dem Start der aktuellen Session
+    var todaySets: [WorkoutSet] {
         return (isInPeriod ? exercise.periodSets : exercise.normalSets)
-            .filter { Calendar.current.startOfDay(for: $0.date) != today }
+            .filter { $0.date >= currentSessionCutoff }
+    }
+
+    // Alle früheren Sätze für den Verlauf (vor Session-Start)
+    var historySets: [WorkoutSet] {
+        return (isInPeriod ? exercise.periodSets : exercise.normalSets)
+            .filter { $0.date < currentSessionCutoff }
             .sorted { $0.date > $1.date }
     }
 
@@ -90,6 +101,11 @@ struct ExerciseDetailView: View {
 
                 // ── Fortschrittsanzeige ──
                 progressCard
+                
+                // ── PR-Banner ──
+                if showPRBanner {
+                    prBanner
+                }
                 
                 // ── Quick-Actions ──
                 quickActionsRow
@@ -126,7 +142,7 @@ struct ExerciseDetailView: View {
             // Vorherige Übung
             ToolbarItem(placement: .topBarLeading) {
                 if let prev = previousExercise {
-                    NavigationLink(destination: ExerciseDetailView(exercise: prev)) {
+                    NavigationLink(destination: ExerciseDetailView(exercise: prev, sessionStartTime: sessionStartTime)) {
                         HStack(spacing: 4) {
                             Image(systemName: "chevron.left")
                             Text("Zurück")
@@ -140,7 +156,7 @@ struct ExerciseDetailView: View {
             // Nächste Übung / Fertig
             ToolbarItem(placement: .topBarTrailing) {
                 if let next = nextExercise {
-                    NavigationLink(destination: ExerciseDetailView(exercise: next)) {
+                    NavigationLink(destination: ExerciseDetailView(exercise: next, sessionStartTime: sessionStartTime)) {
                         HStack(spacing: 4) {
                             Text("Weiter")
                             Image(systemName: "chevron.right")
@@ -190,7 +206,7 @@ struct ExerciseDetailView: View {
         }
         // ← FIX: Navigation nach Skip
         .navigationDestination(item: $skipTarget) { exercise in
-            ExerciseDetailView(exercise: exercise)
+            ExerciseDetailView(exercise: exercise, sessionStartTime: sessionStartTime)
         }
         .onAppear {
             weightInput = suggestedWeight
@@ -345,7 +361,7 @@ struct ExerciseDetailView: View {
         HStack(spacing: 12) {
             // Zurück zur vorherigen Übung
             if let prev = previousExercise {
-                NavigationLink(destination: ExerciseDetailView(exercise: prev)) {
+                NavigationLink(destination: ExerciseDetailView(exercise: prev, sessionStartTime: sessionStartTime)) {
                     HStack {
                         Image(systemName: "chevron.left.circle.fill")
                         Text("Zurück")
@@ -361,7 +377,7 @@ struct ExerciseDetailView: View {
             
             // Weiter zur nächsten / Fertig
             if let next = nextExercise {
-                NavigationLink(destination: ExerciseDetailView(exercise: next)) {
+                NavigationLink(destination: ExerciseDetailView(exercise: next, sessionStartTime: sessionStartTime)) {
                     HStack {
                         Text("Nächste Übung")
                             .fontWeight(.semibold)
@@ -662,6 +678,9 @@ struct ExerciseDetailView: View {
         guard let weight = Double(weightInput),
               let reps   = Int(repsInput) else { return }
 
+        // PR-Erkennung: Ist das neue Gewicht ein Allzeit-Rekord?
+        let isPR = allTimePR == nil || weight > (allTimePR ?? 0)
+
         let newSet = WorkoutSet(
             weight:         weight,
             reps:           reps,
@@ -687,8 +706,65 @@ struct ExerciseDetailView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             withAnimation { savedBanner = false }
         }
+        
+        // PR-Banner anzeigen wenn neuer Rekord
+        if isPR {
+            let generator = UINotificationFeedbackGenerator()
+            generator.notificationOccurred(.success)
+            withAnimation(.spring(response: 0.4)) {
+                showPRBanner = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+                withAnimation { showPRBanner = false }
+            }
+        }
     }
 }
+// ───────────────────────────────────────────
+// MARK: – PR Banner
+// ───────────────────────────────────────────
+
+extension ExerciseDetailView {
+    var prBanner: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(Color(hex: "#F4A623"))
+                    .frame(width: 48, height: 48)
+                Text("🏆")
+                    .font(.title2)
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Neuer Persönlicher Rekord!")
+                    .font(.subheadline)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                Text("\(weightInput) kg – dein neues Maximum 💪")
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.9))
+            }
+            
+            Spacer()
+            
+            Image(systemName: "star.fill")
+                .font(.title2)
+                .foregroundColor(.white)
+        }
+        .padding(16)
+        .background(
+            LinearGradient(
+                colors: [Color(hex: "#F4A623"), Color(hex: "#E8861A")],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
+        .cornerRadius(16)
+        .shadow(color: Color(hex: "#F4A623").opacity(0.5), radius: 12, y: 6)
+        .transition(.move(edge: .top).combined(with: .opacity))
+    }
+}
+
 // ───────────────────────────────────────────
 // MARK: – Phase Comparison Box
 // ───────────────────────────────────────────
